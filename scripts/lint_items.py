@@ -165,6 +165,45 @@ for seq, iid in order:
     if form_opts.get(seq) != iopts:
         fail(f"응시본 {seq}번({iid}) 선택지가 문항 파일과 불일치 — forms/를 재생성할 것")
 
+# 온라인 응시본 검사 (생성물 — scripts/build_web_form.py 로 재생성)
+import json as _json
+web_path = ROOT/'forms/form-A.web.html'
+if not web_path.exists():
+    fail("forms/form-A.web.html 없음 — build_web_form.py 를 실행할 것")
+else:
+    web = web_path.read_text()
+    for kw in ('해설', '오답 진단', 'distractor', 'answer_worst'):
+        if kw in web: fail(f"온라인 응시본에 '{kw}' 누출")
+    m = re.search(r'^const DATA = (\{.*\});$', web, re.M)
+    if not m:
+        fail("온라인 응시본에서 DATA 블록을 찾지 못함")
+    else:
+        try: D = _json.loads(m.group(1))
+        except Exception as e: D = None; fail(f"온라인 응시본 DATA 파싱 실패: {e}")
+        if D:
+            ALLOWED = {'seq','id','stem','solo','q','options','worst'}
+            if len(D.get('mc',[])) != 20:
+                fail(f"온라인 응시본 객관식 {len(D.get('mc',[]))}문항 (20문항이어야 함)")
+            for q in D.get('mc',[]):
+                extra = set(q) - ALLOWED
+                if extra: fail(f"{q.get('id')}: 응시본 데이터에 허용되지 않은 키 {sorted(extra)}")
+                cand = list(ROOT.glob(f"items/mc/*/{q['id']}.md"))
+                if not cand: fail(f"온라인 응시본이 참조하는 {q['id']} 파일 없음"); continue
+                _, ib = parse(cand[0])
+                iopts = re.findall(r'^\d\.\s*(.+)$', section(ib, '선택지') or '', re.M)
+                strip = lambda s: re.sub(r'<[^>]+>', '', s).replace('&amp;','&').replace('&lt;','<').replace('&gt;','>')
+                if [strip(o) for o in q['options']] != iopts:
+                    fail(f"온라인 응시본 {q['seq']}번({q['id']}) 선택지가 문항 파일과 불일치 — forms/를 재생성할 것")
+                # 문항 고유 자료(블록 문항의 '(STEM-00N 참조)' 뒤에 붙는 검증 대상 등)가 실렸는가
+                sit = section(ib, '상황') or ''
+                if q['stem']:
+                    sit = re.sub(r'^\(STEM-\d{3}\s*참조\)\s*', '', sit).strip()
+                norm = lambda s: re.sub(r'[\s*>`_]', '', strip(s))
+                if norm(sit) and norm(sit) not in norm(q.get('solo','')):
+                    fail(f"온라인 응시본 {q['seq']}번({q['id']}) 문항 고유 자료 누락 — 답할 수 없는 문항이 된다")
+            if len(D.get('stems',{})) != 4: fail("온라인 응시본 공통 지문 4개가 아님")
+            if len(D.get('personas',[])) != 6: fail("온라인 응시본 페르소나 6종이 아님")
+
 # 상대 링크 검증
 for p in list(ROOT.glob('**/*.md')):
     if '.git' in p.parts: continue
