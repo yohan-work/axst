@@ -6,6 +6,8 @@
 
 문항 뱅크 · 채점 루브릭 · LLM 채점 프로토콜 · 처방 가이드
 
+<sub><b>공개 참조 구현입니다.</b> 폼 A는 정답과 해설이 함께 공개되어 있으므로 점수가 나가는 진단 회차에는 쓸 수 없습니다 — 시행에는 <a href="docs/08-administration.md#폼-분리-공개-참조-폼과-시행-폼">비공개 시행 폼</a>을 따로 만듭니다.</sub>
+
 [![status](https://img.shields.io/badge/status-pilot--pending-orange)](docs/07-validity-plan.md)
 [![lint](https://img.shields.io/badge/lint-passing-brightgreen)](scripts/lint_items.py)
 [![items](https://img.shields.io/badge/items-24%20banked%20%2F%2020%20deployed-blue)](forms/MANIFEST.yml)
@@ -281,7 +283,11 @@ B2B에서 알아야 할 것은 툴 지식이 아니라 **이 사람과 이 조�
 
 ## 라이선스
 
-**미정.** 사내 진단 자료와 공개 배포 가능한 문항 뱅크는 취급이 달라야 하므로, 배포 범위를 정한 뒤 명시한다. 그전까지는 이 레포를 외부에 재배포하지 않는다.
+**아직 지정하지 않았다.** 이 저장소는 공개되어 있지만, 라이선스가 없으면 법적 기본값은 **전권 유보**다 — 읽고 참고하는 것 외에 복제·수정·재배포할 권리가 자동으로 생기지 않는다.
+
+방법론을 가져다 쓸 수 있게 하려면 소유자가 `LICENSE`를 추가해야 한다. 그 전까지 이 저장소를 인용할 때는 링크로 참조한다.
+
+**공개 범위의 실질적 귀결**: 문항 파일은 SSOT를 유지하려고 정답·해설·오답 진단을 함께 들고 있고([AGENTS.md](AGENTS.md)), 저장소가 공개이므로 그것들도 공개다. 이것이 폼 A를 시행용으로 쓸 수 없는 이유이고, [시행 폼 분리 정책](docs/08-administration.md#폼-분리-공개-참조-폼과-시행-폼)이 있는 이유다.
 
 ---
 
