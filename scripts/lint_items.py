@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""문항 뱅크 정합성 린트. 기준은 docs/03-item-writing-rules.md."""
+import re, sys, pathlib
+from collections import Counter
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+FAIL, WARN = [], []
+
+def fail(m): FAIL.append(m)
+def warn(m): WARN.append(m)
+
+def parse(path):
+    t = path.read_text()
+    m = re.match(r'^---\n(.*?)\n---\n(.*)$', t, re.S)
+    if not m: fail(f"{path.name}: frontmatter 없음"); return None, None
+    fm = {}
+    for line in m.group(1).split('\n'):
+        km = re.match(r'^([a-z_]+):\s*(.*)$', line)
+        if km: fm[km.group(1)] = km.group(2).strip()
+    return fm, m.group(2)
+
+def section(body, name):
+    m = re.search(rf'^## {name}\n(.*?)(?=^## |\Z)', body, re.S | re.M)
+    return m.group(1).strip() if m else None
+
+ID_RE = re.compile(r'^MC-(DEL|DSN|VER|FLW|RSK)-\d{3}$')
+AXES = {'위임판단력','작업설계','검증신뢰','워크플로우','리스크거버넌스'}
+AXIS_BY_CODE = {'DEL':'위임판단력','DSN':'작업설계','VER':'검증신뢰','FLW':'워크플로우','RSK':'리스크거버넌스'}
+FORMS = {'SJT','산출물비평','최선차선'}
+LEVELS = {'인지','적용','판단'}
+STANCES = {'적극','보수','중립'}
+STATUS = {'초안','검토','파일럿','채택','보류','폐기'}
+BANNED = re.compile(r'위 모든|정답 없음|A와 B')
+
+items = []
+for p in sorted(ROOT.glob('items/mc/*/MC-*.md')):
+    fm, body = parse(p)
+    if not fm: continue
+    iid = fm.get('id','')
+    if not ID_RE.match(iid): fail(f"{p.name}: id 형식 위반 ({iid})")
+    code = iid.split('-')[1] if '-' in iid else ''
+    if fm.get('axis') not in AXES: fail(f"{iid}: axis 값 오류")
+    elif AXIS_BY_CODE.get(code) != fm.get('axis'):
+        fail(f"{iid}: id 코드({code})와 axis({fm.get('axis')}) 불일치")
+    if not fm.get('axis_note','').strip(' "'): fail(f"{iid}: axis_note 누락")
+    if fm.get('form') not in FORMS: fail(f"{iid}: form 값 오류")
+    if fm.get('level') not in LEVELS: fail(f"{iid}: level 값 오류")
+    if fm.get('key_stance') not in STANCES: fail(f"{iid}: key_stance 값 오류")
+    if fm.get('status') not in STATUS: fail(f"{iid}: status 값 오류")
+    if not fm.get('decision_dimension','').strip(' "'): fail(f"{iid}: decision_dimension 누락")
+    if fm.get('axis') == '워크플로우' and fm.get('subelement') in (None,'null',''):
+        fail(f"{iid}: FLW 문항에 subelement 누락")
+
+    ans = fm.get('answer'); worst = fm.get('worst') or fm.get('answer_worst')
+    if ans not in {'1','2','3','4'}: fail(f"{iid}: answer 범위 오류")
+    if fm.get('form') == '최선차선':
+        if worst in (None,'null',''): fail(f"{iid}: 최선차선인데 answer_worst 없음")
+        elif worst == ans: fail(f"{iid}: answer와 answer_worst가 같다")
+    else:
+        if worst not in (None,'null',''): warn(f"{iid}: 최선차선이 아닌데 answer_worst 있음")
+
+    # distractor_dx 1..4
+    dx = re.search(r'^distractor_dx:\n((?:  \d: .*\n)+)', body if False else p.read_text(), re.M)
+    keys = set(re.findall(r'^  ([1-4]):', p.read_text(), re.M))
+    if keys != {'1','2','3','4'}: fail(f"{iid}: distractor_dx 키 불완전 ({sorted(keys)})")
+    dxmap = dict(re.findall(r'^  ([1-4]): (.*)$', p.read_text(), re.M))
+    if ans in dxmap and '정답' not in dxmap[ans]: fail(f"{iid}: distractor_dx[{ans}]가 '정답'이 아니다")
+    for k,v in dxmap.items():
+        if k != ans and ('정답' in v or not v.strip(' "')):
+            fail(f"{iid}: distractor_dx[{k}] 오답 진단 누락 또는 '정답' 표기")
+
+    # 선택지
+    opts = section(body, '선택지')
+    olist = re.findall(r'^\d\.\s*(.+)$', opts, re.M) if opts else []
+    if len(olist) != 4: fail(f"{iid}: 선택지 4개가 아님 ({len(olist)})")
+    else:
+        lens = [len(o) for o in olist]
+        ratio = max(lens)/min(lens)
+        limit = 200 if fm.get('stem_ref') not in (None,'null','') else 240
+        if ratio > 1.25: fail(f"{iid}: 선택지 길이 비율 {ratio:.2f} > 1.25 (길이 {lens})")
+        if sum(lens) > limit: fail(f"{iid}: 선택지 합계 {sum(lens)}자 > {limit}자")
+
+    # 지문
+    stem = section(body, '상황')
+    if fm.get('stem_ref') in (None,'null',''):
+        if not stem or '참조' in stem: fail(f"{iid}: 단독 문항인데 상황 절이 없다")
+        elif len(stem) > 120: warn(f"{iid}: 단독 지문 {len(stem)}자 > 120자")
+    # 해설·오답 진단
+    for s in ('질문','해설','오답 진단'):
+        if not section(body, s): fail(f"{iid}: '{s}' 절 누락")
+
+    if BANNED.search(p.read_text()): fail(f"{iid}: 금지 패턴 검출")
+
+    items.append(fm)
+
+# --- 폼 A 수준 검사
+dep = [i for i in items if i.get('pools') == '[A]']
+if len(dep) != 20: fail(f"배포 문항 수 {len(dep)} != 20")
+axc = Counter(i['axis'] for i in dep)
+if set(axc.values()) != {4}: fail(f"축 배분 불균등: {dict(axc)}")
+lvc = Counter(i['level'] for i in dep)
+if lvc != Counter({'적용':10,'판단':6,'인지':4}): fail(f"난이도 배분 오류: {dict(lvc)}")
+anc = Counter(i['answer'] for i in dep)
+for k in '1234':
+    if not 4 <= anc[k] <= 6: fail(f"정답 위치 {k}번 {anc[k]}회 (5±1 벗어남)")
+stc = Counter(i['key_stance'] for i in dep)
+for s in ('적극','보수'):
+    if not 6 <= stc[s] <= 10: fail(f"stance {s} {stc[s]}개 (8±2 벗어남)")
+total = sum(int(i['time_sec']) for i in dep) + 4*30
+if total > 1200: fail(f"시간 예산 {total}초 > 1200초")
+
+# 블록별 축 중복
+blocks = {}
+for i in dep:
+    sr = i.get('stem_ref')
+    if sr not in (None,'null',''): blocks.setdefault(sr, []).append(i['axis'])
+for sr, axs in blocks.items():
+    if len(axs) != 3: fail(f"{sr}: 블록 문항 {len(axs)}개 (3개여야 함)")
+    if len(set(axs)) != len(axs): fail(f"{sr}: 블록 내 축 중복 {axs}")
+
+# FLW 하위요소
+flw = [i for i in dep if i['axis']=='워크플로우']
+sub = Counter(i.get('subelement') for i in flw)
+if set(sub.keys()) != {'단계소멸','핸드오프전파','전환증명'}:
+    fail(f"FLW 하위요소 3종 미충족: {dict(sub)}")
+
+# 응시본 정답 누출
+form = (ROOT/'forms/form-A.md').read_text()
+for kw in ('정답','해설','distractor','answer:'):
+    if kw in form: fail(f"응시본에 '{kw}' 누출")
+
+# 응시본 선택지가 문항 파일과 일치하는가 (forms/ 는 생성물이므로 드리프트 검출)
+order = re.findall(r'^  - \{seq: (\d+),\s+id: (MC-[A-Z]{3}-\d{3})', (ROOT/'forms/MANIFEST.yml').read_text(), re.M)
+if len(order) != 20: fail(f"MANIFEST order에 MC 문항 {len(order)}개 (20개여야 함)")
+fb = re.split(r'^\*\*(\d+)\.\*\*', form, flags=re.M)
+form_opts = {fb[i]: re.findall(r'^\d\.\s*(.+)$', fb[i+1], re.M) for i in range(1, len(fb), 2)}
+if len(form_opts) != 20: fail(f"응시본 객관식 {len(form_opts)}문항 (20문항이어야 함)")
+for seq, iid in order:
+    cand = list(ROOT.glob(f'items/mc/*/{iid}.md'))
+    if not cand: fail(f"MANIFEST가 참조하는 {iid} 파일 없음"); continue
+    _, ibody = parse(cand[0])
+    iopts = re.findall(r'^\d\.\s*(.+)$', section(ibody, '선택지') or '', re.M)
+    if form_opts.get(seq) != iopts:
+        fail(f"응시본 {seq}번({iid}) 선택지가 문항 파일과 불일치 — forms/를 재생성할 것")
+
+# 상대 링크 검증
+for p in list(ROOT.glob('**/*.md')):
+    if '.git' in p.parts: continue
+    for link in re.findall(r'\]\((?!https?://)([^)#]+)', p.read_text()):
+        if not (p.parent/link).exists(): fail(f"{p.relative_to(ROOT)}: 깨진 링크 → {link}")
+
+print(f"검사 문항: {len(items)}개 (배포 {len(dep)})")
+print(f"축 배분: {dict(axc)}")
+print(f"난이도: {dict(lvc)}")
+print(f"정답 위치: {dict(sorted(anc.items()))}")
+print(f"stance: {dict(stc)}")
+print(f"FLW 하위요소: {dict(sub)}")
+print(f"시간 예산: {total}초 ({total/60:.1f}분)")
+print()
+for w in WARN: print(f"WARN  {w}")
+for f in FAIL: print(f"FAIL  {f}")
+print()
+print(f"결과: {'PASS' if not FAIL else 'FAIL'}  (실패 {len(FAIL)} / 경고 {len(WARN)})")
+sys.exit(1 if FAIL else 0)
