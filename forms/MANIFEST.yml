@@ -1,0 +1,74 @@
+# 생성물. 수동 편집 금지 — items/ 에서 재생성한다.
+form: A
+purpose: 진단 회차 (교육 설계 전용, 인사 미반영)
+generated: 2026-09-16
+source: items/
+
+composition:
+  mc_deployed: 20
+  mc_bank: 24
+  mc_reserve: 4
+  fr: 2
+  selfreport: 3
+  points: {mc: 60, fr: 40, total: 100}
+
+order:
+  - {seq: 1,  id: MC-DEL-001, stem: STEM-001, axis: DEL, level: 판단, answer: 2, worst: null, stance: 보수,  time_sec: 40}
+  - {seq: 2,  id: MC-DSN-001, stem: STEM-001, axis: DSN, level: 적용, answer: 3, worst: null, stance: 적극,  time_sec: 40}
+  - {seq: 3,  id: MC-VER-001, stem: STEM-001, axis: VER, level: 적용, answer: 1, worst: null, stance: 중립,  time_sec: 40}
+  - {seq: 4,  id: MC-DEL-002, stem: STEM-002, axis: DEL, level: 판단, answer: 3, worst: 1,    stance: 보수,  time_sec: 50}
+  - {seq: 5,  id: MC-FLW-001, stem: STEM-002, axis: FLW, level: 판단, answer: 4, worst: null, stance: 적극,  time_sec: 40}
+  - {seq: 6,  id: MC-RSK-001, stem: STEM-002, axis: RSK, level: 적용, answer: 2, worst: null, stance: 보수,  time_sec: 40}
+  - {seq: 7,  id: MC-DSN-002, stem: STEM-003, axis: DSN, level: 적용, answer: 1, worst: null, stance: 적극,  time_sec: 40}
+  - {seq: 8,  id: MC-VER-002, stem: STEM-003, axis: VER, level: 적용, answer: 4, worst: null, stance: 중립,  time_sec: 40}
+  - {seq: 9,  id: MC-FLW-002, stem: STEM-003, axis: FLW, level: 판단, answer: 2, worst: null, stance: 적극,  time_sec: 40}
+  - {seq: 10, id: MC-DEL-003, stem: STEM-004, axis: DEL, level: 적용, answer: 4, worst: null, stance: 적극,  time_sec: 40}
+  - {seq: 11, id: MC-VER-003, stem: STEM-004, axis: VER, level: 판단, answer: 2, worst: null, stance: 중립,  time_sec: 40}
+  - {seq: 12, id: MC-RSK-002, stem: STEM-004, axis: RSK, level: 인지, answer: 3, worst: null, stance: 보수,  time_sec: 40}
+  - {seq: 13, id: MC-DEL-004, stem: null,     axis: DEL, level: 판단, answer: 1, worst: 4,    stance: 보수,  time_sec: 80}
+  - {seq: 14, id: MC-DSN-003, stem: null,     axis: DSN, level: 인지, answer: 2, worst: null, stance: 중립,  time_sec: 70}
+  - {seq: 15, id: MC-DSN-004, stem: null,     axis: DSN, level: 적용, answer: 4, worst: null, stance: 적극,  time_sec: 70}
+  - {seq: 16, id: MC-VER-004, stem: null,     axis: VER, level: 인지, answer: 3, worst: null, stance: 보수,  time_sec: 70}
+  - {seq: 17, id: MC-FLW-003, stem: null,     axis: FLW, level: 적용, answer: 1, worst: 3,    stance: 적극,  time_sec: 80}
+  - {seq: 18, id: MC-FLW-004, stem: null,     axis: FLW, level: 적용, answer: 3, worst: 1,    stance: 중립,  time_sec: 80}
+  - {seq: 19, id: MC-RSK-003, stem: null,     axis: RSK, level: 인지, answer: 4, worst: null, stance: 보수,  time_sec: 70}
+  - {seq: 20, id: MC-RSK-004, stem: null,     axis: RSK, level: 적용, answer: 1, worst: null, stance: 적극,  time_sec: 70}
+  - {seq: 21, id: FR-01, axes: [DEL, FLW], points: 20, time_min: 6.5}
+  - {seq: 22, id: FR-02, axes: [DSN, VER], points: 20, time_min: 6.5}
+
+reserve: [MC-DEL-005, MC-VER-005, MC-FLW-005, MC-RSK-005]
+
+lint:
+  run: 2026-09-16
+  result: PASS
+  checks:
+    axis_balance:        {expect: "4/4/4/4/4", actual: "DEL 4 / DSN 4 / VER 4 / FLW 4 / RSK 4", pass: true}
+    difficulty:          {expect: "인지 4 / 적용 10 / 판단 6", actual: "인지 4 / 적용 10 / 판단 6", pass: true}
+    answer_position:     {expect: "각 5±1", actual: "1→5, 2→5, 3→5, 4→5", pass: true}
+    no_three_in_a_row:   {sequence: "2,3,1,3,4,2,1,4,2,4,2,3,1,2,4,3,1,3,4,1", pass: true}
+    stance_balance:      {expect: "적극 8±2 / 보수 8±2", actual: "적극 8 / 보수 7 / 중립 5", pass: true}
+    no_ai_avoidance_key: {expect: "≤1", actual: 0, pass: true}
+    block_axis_unique:   {expect: "블록별 고유 축 3", actual: "STEM-001~004 모두 3", pass: true}
+    time_budget:         {expect: "≤1200초", actual: "문항 1080 + 지문 120 = 1200초 (20.0분)", pass: true}
+    banned_patterns:     {pattern: "위 모든|정답 없음|A와 B", hits: 0, pass: true}
+    distractor_dx_full:  {expect: "문항별 4개", actual: "24문항 전부 4개", pass: true}
+    answer_worst_set:    {expect: "최선차선 4문항 전부", actual: "MC-DEL-002/004, MC-FLW-003/004", pass: true}
+    answer_leak_in_form: {grep: "정답|해설|distractor", hits: 0, pass: true}
+    option_length_ratio: {expect: "최장 ≤ 최단 x 1.25", actual: "24문항 전부 충족 (초기 5문항 수정)", pass: true}
+    option_chars_limit:  {expect: "블록 내 ≤200자 / 단독 ≤240자", actual: "24문항 전부 충족", pass: true}
+    form_item_sync:      {expect: "응시본 선택지 = 문항 파일", actual: "20/20 일치", pass: true}
+    links:               {expect: "상대 링크 전부 유효", actual: "깨진 링크 0건", pass: true}
+  tool: scripts/lint_items.py
+  manual_pending:
+    - 자가 응시 소요 시간 측정 (35분 ±3분)
+    - 앵커 캘리브레이션 (FR-01/FR-02 각 6개, D1 ±1점)
+    - FR-02 감점 -5 탐지 확인 (fr-02-anchors L1-b)
+    - 범용 LLM 답안의 상한 조건 작동 확인
+
+time_budget_total:
+  안내_자기보고: 2분
+  객관식: 20.0분
+  주관식: 13분
+  합계: 35.0분
+
+exposures: 0
