@@ -1,0 +1,5 @@
+# 응시 응답은 개인정보다. 레포에 커밋하면 무기명 보장이 거짓이 된다.
+pilot/responses/*
+!pilot/responses/.gitkeep
+
+.DS_Store
