@@ -93,6 +93,28 @@ for p in sorted(ROOT.glob('items/mc/*/MC-*.md')):
 
     items.append(fm)
 
+# --- 공통 지문 검사 (상한은 docs/03-item-writing-rules.md 글자수 표)
+STEM_LIMIT = 200
+stem_ids = set()
+for p in sorted(ROOT.glob('items/stems/STEM-*.md')):
+    fm, body = parse(p)
+    if not fm: continue
+    sid = fm.get('id','')
+    stem_ids.add(sid)
+    text = section(body, '지문')
+    if not text:
+        fail(f"{sid}: '지문' 절 누락"); continue
+    if len(text) > STEM_LIMIT:
+        fail(f"{sid}: 공통 지문 {len(text)}자 > {STEM_LIMIT}자")
+    dec = fm.get('chars')
+    if dec and dec.isdigit() and abs(int(dec) - len(text)) > 10:
+        warn(f"{sid}: frontmatter chars={dec} vs 실제 {len(text)}자")
+
+for i in items:
+    sr = i.get('stem_ref')
+    if sr not in (None,'null','') and sr not in stem_ids:
+        fail(f"{i.get('id')}: stem_ref가 가리키는 {sr} 없음")
+
 # --- 폼 A 수준 검사
 dep = [i for i in items if i.get('pools') == '[A]']
 if len(dep) != 20: fail(f"배포 문항 수 {len(dep)} != 20")
