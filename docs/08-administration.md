@@ -101,7 +101,7 @@
 
 1. 응답 원본을 `pilot/responses/`에 보관 — **커밋하지 않는다**(`.gitignore`)
 2. 시행 폼이면 `MANIFEST.yml`의 `exposures`를 +1. **2회 도달 시 폼 교체를 검토**한다. 공개 참조 폼(폼 A)은 올리지 않는다
-3. 채점 → [04-scoring.md](04-scoring.md)의 채점 절차 8단계
+3. 채점 → `python3 scripts/score.py pilot/responses/*.json` → [04-scoring.md](04-scoring.md)의 채점 절차 8단계
 4. 리포트 생성 → [05-report-templates.md](05-report-templates.md). **금지 표현 최종 검사를 거른 채 배포하지 않는다**
 5. 처방 매핑 → [06-prescription.md](06-prescription.md)
 6. 스폰서 합의문 §3의 4주 일정표 착수

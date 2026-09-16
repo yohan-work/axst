@@ -81,6 +81,16 @@
 
 ## 빠른 시작
 
+### 응답 채점
+
+```bash
+python3 scripts/score.py pilot/responses/*.json              # 개인 채점표
+python3 scripts/score.py pilot/responses/*.json --prompts out/   # 주관식 5패스 패킷 생성
+python3 scripts/score.py pilot/responses/*.json --cohort      # 조직 집계 (n≥10)
+```
+
+객관식 자동 채점(최선–최악 부분 점수 포함) · 축 3단 플래그 · 자기보고 삼각검증 · 오답 진단 인용 · 주관식 채점 패킷 생성. **개인의 축별 점수를 숫자로 내보내지 않는다** — 도구가 규칙을 강제한다.
+
 ### 온라인 응시본 생성
 
 ```bash
@@ -146,7 +156,7 @@ axst/
 │   ├── form-A.web.html        온라인 응시본 (생성물)
 │   └── MANIFEST.yml           출제 순서와 폼 메타 (손 유지 · 린트가 대조)
 ├── selfreport/            자기보고 3문항 (점수 미반영, 플래그 삼각검증용)
-├── scripts/               lint_items.py · build_web_form.py
+├── scripts/               lint_items.py · build_web_form.py · score.py
 └── pilot/                 문항 분석 기록 (responses/ 는 커밋 제외)
 ```
 
