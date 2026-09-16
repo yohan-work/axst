@@ -156,6 +156,7 @@ order = re.findall(r'^  - \{seq: (\d+),\s+id: (MC-[A-Z]{3}-\d{3})', (ROOT/'forms
 if len(order) != 20: fail(f"MANIFEST order에 MC 문항 {len(order)}개 (20개여야 함)")
 fb = re.split(r'^\*\*(\d+)\.\*\*', form, flags=re.M)
 form_opts = {fb[i]: re.findall(r'^\d\.\s*(.+)$', fb[i+1], re.M) for i in range(1, len(fb), 2)}
+form_opts_raw = {fb[i]: fb[i+1] for i in range(1, len(fb), 2)}
 if len(form_opts) != 20: fail(f"응시본 객관식 {len(form_opts)}문항 (20문항이어야 함)")
 for seq, iid in order:
     cand = list(ROOT.glob(f'items/mc/*/{iid}.md'))
@@ -164,6 +165,88 @@ for seq, iid in order:
     iopts = re.findall(r'^\d\.\s*(.+)$', section(ibody, '선택지') or '', re.M)
     if form_opts.get(seq) != iopts:
         fail(f"응시본 {seq}번({iid}) 선택지가 문항 파일과 불일치 — forms/를 재생성할 것")
+
+# 파생 필드 검증 — forms/ 는 손으로 유지되므로 파생값은 전부 문항 파일과 대조한다.
+# 정답지·MANIFEST의 정답이 문항과 어긋나면 그 문항은 전원 오채점된다.
+mani = (ROOT/'forms/MANIFEST.yml').read_text()
+AXIS_SHORT = {v: k for k, v in AXIS_BY_CODE.items()}
+by_id = {}
+for p2 in sorted(ROOT.glob('items/mc/*/MC-*.md')):
+    fm2, body2 = parse(p2)
+    if fm2: by_id[fm2.get('id')] = (fm2, body2)
+
+def _n(s):
+    return re.sub(r'[\s*`>_—–\-]', '', re.sub(r'<[^>]+>', '', s or ''))
+
+# (1) MANIFEST order 행의 파생값 ↔ 문항 frontmatter
+mrows = re.findall(
+    r'^  - \{seq: (\d+),\s*id: ([^,\s]+),\s*stem: ([^,\s]+),\s*axis: ([^,\s]+),\s*level: ([^,\s]+),\s*'
+    r'answer: ([^,\s]+),\s*worst: ([^,\s]+),\s*stance: ([^,\s]+),\s*time_sec: (\d+)\}', mani, re.M)
+if len(mrows) != 20:
+    fail(f"MANIFEST order 행 파싱 {len(mrows)}개 (20개여야 함) — 형식이 바뀌었는지 확인")
+for seq, iid, stem, ax, lv, ans2, wo, st, ts in mrows:
+    if iid not in by_id: fail(f"MANIFEST가 참조하는 {iid} 없음"); continue
+    fm2, _ = by_id[iid]
+    exp_stem = fm2.get('stem_ref') or 'null'
+    checks = [('stem', stem, exp_stem), ('axis', ax, AXIS_SHORT.get(fm2.get('axis'), '?')),
+              ('level', lv, fm2.get('level')), ('answer', ans2, fm2.get('answer')),
+              ('worst', wo, fm2.get('answer_worst') or 'null'),
+              ('stance', st, fm2.get('key_stance')), ('time_sec', ts, fm2.get('time_sec'))]
+    for name, got, want in checks:
+        if got != want:
+            fail(f"MANIFEST {seq}번({iid}) {name}={got} 인데 문항 파일은 {want} — forms/를 갱신할 것")
+
+# (2) 정답지 객관식 표 ↔ 문항 파일
+ansdoc = (ROOT/'forms/form-A.answers.md').read_text()
+arows = re.findall(r'^\| (\d+) \| `(MC-[A-Z]{3}-\d{3})` \| (\w+) [^|]*\| (\S+) \| \*\*(\d)\*\* \| '
+                   r'(—|\*\*\d\*\*) \| ([^|]+)\|', ansdoc, re.M)
+if len(arows) != 20:
+    fail(f"정답지 객관식 표 {len(arows)}행 (20행이어야 함) — 형식이 바뀌었는지 확인")
+mani_seq = {s: i for s, i, *_ in mrows}
+for seq, iid, ax, lv, ans2, wo, pts in arows:
+    if mani_seq.get(seq) != iid:
+        fail(f"정답지 {seq}번이 {iid} 인데 MANIFEST는 {mani_seq.get(seq)}")
+    if iid not in by_id: continue
+    fm2, _ = by_id[iid]
+    want_wo = f"**{fm2.get('answer_worst')}**" if fm2.get('answer_worst') not in (None,'null','') else '—'
+    for name, got, want in [('축', ax, AXIS_SHORT.get(fm2.get('axis'), '?')),
+                            ('난이도', lv, fm2.get('level')),
+                            ('정답', ans2, fm2.get('answer')), ('최악', wo, want_wo)]:
+        if got != want:
+            fail(f"정답지 {seq}번({iid}) {name}={got} 인데 문항 파일은 {want} — 이 문항은 전원 오채점된다")
+    want_pts = '2+1' if want_wo != '—' else '3'
+    if pts.strip() != want_pts:
+        fail(f"정답지 {seq}번({iid}) 배점={pts.strip()} 인데 {want_pts}이어야 함")
+
+# (3) 정답지 축별 집계표 ↔ 실제 축 배정
+axis_of_seq = {}
+for seq, iid, *_ in mrows:
+    if iid in by_id: axis_of_seq[int(seq)] = by_id[iid][0].get('axis')
+for line in re.findall(r'^\| (\w+) [^|]*\| ([\d, ]+) \| __ /4 \|', ansdoc, re.M):
+    code, seqs = line
+    listed = sorted(int(x) for x in seqs.replace(' ', '').split(','))
+    actual = sorted(s for s, a in axis_of_seq.items() if AXIS_SHORT.get(a) == code)
+    if listed != actual:
+        fail(f"정답지 축별 집계표 {code} 문항이 {listed} 인데 실제는 {actual}")
+
+# (4) 응시본 문항 본문 ↔ 문항 파일 (고유 상황 + 질문)
+for seq, iid, stem, *_ in mrows:
+    if iid not in by_id or seq not in form_opts: continue
+    fm2, body2 = by_id[iid]
+    blk = _n(form_opts_raw.get(seq, ''))
+    sit = section(body2, '상황') or ''
+    if stem != 'null':
+        sit = re.sub(r'^\(STEM-\d{3}\s*참조\)\s*', '', sit).strip()
+    for label, txt in [('고유 상황', sit), ('질문', section(body2, '질문') or '')]:
+        if _n(txt) and _n(txt) not in blk:
+            fail(f"응시본 {seq}번({iid}) {label}이 문항 파일과 불일치 — forms/를 갱신할 것")
+
+# (5) 응시본 공통 지문 ↔ STEM 파일
+for sp in sorted(ROOT.glob('items/stems/STEM-*.md')):
+    sfm, sbody = parse(sp)
+    stxt = _n(section(sbody, '지문') or '')
+    if stxt and stxt not in _n(form):
+        fail(f"{sfm.get('id')} 지문이 응시본에 없거나 불일치 — forms/를 갱신할 것")
 
 # 폼 공개 범위 가드 (docs/08 '폼 분리' 정책)
 # 실패 모드는 하나다 — 정답이 공개된 폼으로 점수 나가는 회차를 시행하는 것.
