@@ -165,6 +165,24 @@ for seq, iid in order:
     if form_opts.get(seq) != iopts:
         fail(f"응시본 {seq}번({iid}) 선택지가 문항 파일과 불일치 — forms/를 재생성할 것")
 
+# 폼 공개 범위 가드 (docs/08 '폼 분리' 정책)
+# 실패 모드는 하나다 — 정답이 공개된 폼으로 점수 나가는 회차를 시행하는 것.
+mani = (ROOT/'forms/MANIFEST.yml').read_text()
+vm = re.search(r'^visibility:\s*(\S+)', mani, re.M)
+VIS = {'공개참조', '비공개시행'}
+if not vm:
+    fail("MANIFEST에 visibility 선언 없음 (공개참조 | 비공개시행)")
+elif vm.group(1) not in VIS:
+    fail(f"MANIFEST visibility 값 오류 ({vm.group(1)}) — 공개참조 | 비공개시행")
+else:
+    em = re.search(r'^exposures:\s*(\d+)', mani, re.M)
+    exp = int(em.group(1)) if em else None
+    if exp is None:
+        fail("MANIFEST에 exposures 없음")
+    elif vm.group(1) == '공개참조' and exp > 0:
+        fail(f"공개참조 폼의 exposures={exp} — 정답이 공개된 폼으로 시행했다는 뜻이다. "
+             f"점수가 나가는 회차는 비공개 시행 폼으로 한다 (docs/08 '폼 분리')")
+
 # 온라인 응시본 검사 (생성물 — scripts/build_web_form.py 로 재생성)
 import json as _json
 web_path = ROOT/'forms/form-A.web.html'
