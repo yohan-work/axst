@@ -3,8 +3,9 @@ key: FIN
 label: 재무·구매
 sensitive_data: true
 hallucination_hook: "업계 평균 비용 비중 등 보유 자료로 재현할 수 없는 항목"
+anchor_items: [집행일, 계정 과목, 집행 금액, 증빙 유형]
 chars: 186
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 ## 페르소나

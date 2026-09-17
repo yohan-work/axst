@@ -3,8 +3,9 @@ key: MFG
 label: 생산·품질
 sensitive_data: false
 hallucination_hook: "불량 원인·설비 노후도 등 보유 자료에 없는 항목"
+anchor_items: [생산일자, 품목코드, 생산 수량, 불량 수량, 불량 유형 코드, 작업조]
 chars: 188
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 ## 페르소나

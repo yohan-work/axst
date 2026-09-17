@@ -248,6 +248,46 @@ for sp in sorted(ROOT.glob('items/stems/STEM-*.md')):
     if stxt and stxt not in _n(form):
         fail(f"{sfm.get('id')} 지문이 응시본에 없거나 불일치 — forms/를 갱신할 것")
 
+# (6) 응시본 주관식 질문 ↔ FR 문항 파일
+# 지필본은 문장을 압축하므로 전문 대조는 못 한다. 대신 ①~④ 각 줄의 물음(…까?)을 양방향으로 대조한다.
+# 한쪽에만 있는 물음은 응시자가 받는 질문이 문항 파일과 다르다는 뜻이다 — 채점 요건을 노출하거나 빠뜨린다.
+def _questions(line):
+    body = re.sub(r'<[^>]+>', '', line).split('—', 1)[-1]   # '① **위임 경계** —' 제목을 뗀다
+    return [_n(q) + '?' for q in re.findall(r'([^?.]+까)\?', body)]
+
+for fid, seq in (('FR-01', 21), ('FR-02', 22)):
+    _, fbody = parse(ROOT/f'items/fr/{fid}.md')
+    fsec = section(fbody, '문항') or ''
+    m = re.search(rf'^### {seq}\..*?(?=^### |\Z)', form, re.M | re.S)
+    if not m or not fsec:
+        fail(f"{fid}: 응시본 {seq}번 또는 문항 파일 '문항' 절을 찾지 못함 — 형식이 바뀌었는지 확인"); continue
+    for mark in '①②③④':
+        il = re.search(rf'^\*\*{mark}.*$', fsec, re.M)
+        fl = re.search(rf'^{mark}.*$', m.group(0), re.M)
+        if not il or not fl:
+            fail(f"{fid}: {mark} 줄을 찾지 못함 (문항 파일 {bool(il)} / 응시본 {bool(fl)})"); continue
+        iq, fq = _questions(il.group(0)), _questions(fl.group(0))
+        for q in fq:
+            if not any(q in x for x in iq):
+                fail(f"응시본 {seq}번 {mark}의 물음 '{q}'가 {fid} 문항 파일에 없음 — forms/를 갱신할 것")
+        for q in iq:
+            if not any(x in q for x in fq):
+                fail(f"{fid} {mark}의 물음 '{q}'가 응시본 {seq}번에 없음 — forms/를 갱신할 것")
+
+# 페르소나 anchor_items ↔ 지문의 데이터 항목 (FR-02 상한 판정의 기준. rubrics/fr-02.md 공통 원칙)
+# 지문에 없는 이름을 기준으로 삼으면 아무도 지목할 수 없어 전원이 상한에 걸린다.
+for pp in sorted(ROOT.glob('personas/*.md')):
+    pfm, pbody = parse(pp)
+    if not pfm: continue
+    am = re.fullmatch(r'\[(.*)\]', pfm.get('anchor_items', ''))
+    names = [x.strip() for x in am.group(1).split(',') if x.strip()] if am else []
+    if not names:
+        fail(f"{pp.name}: anchor_items 누락 또는 비어 있음"); continue
+    declared = set(re.findall(r'`([^`]+)`', pbody))
+    for nm in names:
+        if nm not in declared:
+            fail(f"{pp.name}: anchor_items '{nm}'가 지문의 데이터 항목(`코드 표기`)에 없음")
+
 # 폼 공개 범위 가드 (docs/08 '폼 분리' 정책)
 # 실패 모드는 하나다 — 정답이 공개된 폼으로 점수 나가는 회차를 시행하는 것.
 mani = (ROOT/'forms/MANIFEST.yml').read_text()

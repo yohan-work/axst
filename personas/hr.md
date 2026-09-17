@@ -3,8 +3,9 @@ key: HR
 label: 인사·채용
 sensitive_data: true
 hallucination_hook: "지원자 만족도·이직 의향 등 보유 자료에 없는 항목"
+anchor_items: [공고일, 지원자 수, 서류 통과 수, 면접 진행 수, 최종 입사 수, 채용 경로]
 chars: 196
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 ## 페르소나

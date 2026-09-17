@@ -107,5 +107,84 @@ class Report(unittest.TestCase):
         self.assertIn('L2~L3 경계 → L2 처방', out)
 
 
+class PersonaCap(unittest.TestCase):
+    """rubrics/fr-02.md: 페르소나 고유 항목명을 하나도 지목하지 않으면 네 차원 전부 상한 3점."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.personas = score.load_personas()
+
+    def test_all_six_personas_loaded(self):
+        self.assertEqual(set(self.personas), {'HR', 'SALES', 'MFG', 'FIN', 'DEV', 'STAFF'})
+
+    def test_spacing_ignored(self):
+        hits = score.persona_anchor_hits('반려사유코드는 건수만 집계해라', self.personas['STAFF']['anchor_items'])
+        self.assertEqual(hits, ['반려 사유 코드'])
+
+    def test_generic_template_is_capped(self):
+        # 결함 17: 어느 페르소나에도 붙일 수 있는 문구로는 상한을 피하지 못한다
+        generic = ('아래 자료를 바탕으로 부서별 현황을 담당자가 보기 좋게 1장으로 정리해라. '
+                   '자료에 없는 내용은 쓰지 마라. 수신자는 임원이다.')
+        for key, p in self.personas.items():
+            with self.subTest(persona=key):
+                self.assertEqual(score.persona_anchor_hits(generic, p['anchor_items']), [])
+
+    def test_word_boundary(self):
+        # 공백을 통째로 지우면 낱말 경계를 넘어 잡힌다 — 범용 문구로 상한을 피하는 구멍
+        for key, generic in [('MFG', '작업 조건을 지켜라'), ('STAFF', '제도 명칭을 확인해라'),
+                             ('FIN', '집행 일정에 맞춰라'), ('HR', '공고 일정 기준으로'),
+                             ('FIN', '예산 집행일정표를 본다')]:
+            with self.subTest(generic=generic):
+                self.assertEqual(score.persona_anchor_hits(generic, self.personas[key]['anchor_items']), [])
+        for key, real, want in [('MFG', '작업조별 불량 수량', ['불량 수량', '작업조']),
+                                ('FIN', '`계정 과목`별로 집행일자 순서', ['집행일', '계정 과목']),
+                                ('SALES', '최근접촉일이 오래된 거래처명을', ['거래처명', '최근 접촉일']),
+                                ('MFG', '품목 코드와 생산일자', ['생산일자', '품목코드'])]:
+            with self.subTest(real=real):
+                self.assertEqual(score.persona_anchor_hits(real, self.personas[key]['anchor_items']), want)
+
+    def test_other_persona_items_do_not_count(self):
+        mfg_answer = '`불량 유형 코드`별 `불량 수량`을 집계해라'
+        self.assertEqual(score.persona_anchor_hits(mfg_answer, self.personas['FIN']['anchor_items']), [])
+        self.assertTrue(score.persona_anchor_hits(mfg_answer, self.personas['MFG']['anchor_items']))
+
+
+class Prompts(unittest.TestCase):
+    """채점 패킷에 상한 규칙이 실제로 실린다. _scrub 이 규칙 줄을 지우던 사고의 회귀 방지."""
+
+    def build(self, persona='FIN', text='아래 자료를 바탕으로 정리해라.'):
+        import tempfile
+        d = tempfile.mkdtemp()
+        r = {'respondent': 't', 'free_response': {
+            'FR-01': {'text': '업무 설명'}, 'FR-02': {'persona': persona, 'text': text}}}
+        score.build_prompts([r], d)
+        return {c: (pathlib.Path(d) / f'pass-{c}.md').read_text(encoding='utf-8')
+                for c in ('D1', 'D2', 'D3', 'D4', 'penalty')}
+
+    def test_cap_rules_survive_scrub(self):
+        packets = self.build()
+        for code in ('D1', 'D2', 'D3', 'D4'):
+            with self.subTest(code=code):
+                p = packets[code]
+                self.assertIn('상한을 2점으로 제한한다', p)          # FR-01
+                self.assertIn('상한을 3점**으로 제한한다', p)        # FR-02
+                self.assertIn('어느 페르소나에도 붙일 수 있는 일반 서술은 지목이 아니다', p)
+
+    def test_verdict_written_into_packet(self):
+        capped = self.build(text='아래 자료를 바탕으로 정리해라.')['D2']
+        self.assertIn('상한 적용 — 페르소나 항목명 지목 없음', capped)
+        ok = self.build(text='`계정 과목`별 합계를 표로 정리해라.')['D2']
+        self.assertIn('상한 미적용 — 지목: `계정 과목`', ok)
+
+    def test_missing_persona_is_held_not_fatal(self):
+        # 온라인 응시본은 페르소나 없이도 제출된다. 묶음 전체를 멈추지 않고 보류로 적는다
+        p = self.build(persona=None)['D2']
+        self.assertIn('판정 보류 — 페르소나 미선택', p)
+
+    def test_unknown_persona_fails_loudly(self):
+        with self.assertRaises(ValueError):
+            self.build(persona='XYZ')
+
+
 if __name__ == '__main__':
     unittest.main()

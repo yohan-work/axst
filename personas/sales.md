@@ -3,8 +3,9 @@ key: SALES
 label: 영업·고객
 sensitive_data: true
 hallucination_hook: "이탈 이유·고객 만족도 등 보유 자료에 없는 항목"
+anchor_items: [거래처명, 계약 시작일, 계약 금액, 최근 접촉일]
 chars: 191
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 ## 페르소나
