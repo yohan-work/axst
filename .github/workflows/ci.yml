@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 문항 뱅크 린트
+        run: python3 scripts/lint_items.py
+
+      - name: 채점기 테스트
+        run: python3 -m unittest discover -s tests -v
+
+      - name: 온라인 응시본이 items/ 와 일치하는지 확인
+        run: |
+          python3 scripts/build_web_form.py
+          git diff --exit-code -- forms/form-A.web.html \
+            || { echo "::error::forms/form-A.web.html 이 최신이 아니다. python3 scripts/build_web_form.py 를 실행해 커밋한다."; exit 1; }

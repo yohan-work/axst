@@ -3,3 +3,12 @@ pilot/responses/*
 !pilot/responses/.gitkeep
 
 .DS_Store
+
+# 에이전트 작업용 로컬 인계·연속성 기록 (공개 저장소에 두지 않는다)
+HANDOFF.md
+docs/goal/
+docs/handoff/
+docs/socratic/
+
+__pycache__/
+*.pyc

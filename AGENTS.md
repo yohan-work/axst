@@ -1,6 +1,6 @@
 # AGENTS.md — 이 레포에서 작업할 때의 규약
 
-> **이어서 작업하는 에이전트는 [HANDOFF.md](HANDOFF.md)를 먼저 읽는다.** 현재 진행 상태, 다음 작업 우선순위, 사용자 결정이 필요한 항목이 거기 있다.
+사람 기여자와 코딩 에이전트 모두에게 적용된다. 기여 절차 전반은 [CONTRIBUTING.md](CONTRIBUTING.md), 남은 과제는 [docs/12-open-issues.md](docs/12-open-issues.md).
 
 ## 원칙
 
@@ -27,7 +27,10 @@
 ```
 python3 scripts/build_web_form.py   # 문항을 고쳤으면 온라인 응시본 재생성
 python3 scripts/lint_items.py
+python3 -m unittest discover -s tests   # 채점기를 고쳤으면
 ```
+
+CI(`.github/workflows/ci.yml`)가 같은 검사와 응시본 재생성 일치 여부를 확인한다.
 
 채점은 `python3 scripts/score.py <응답.json>`. 정답을 `items/`에서 읽으므로 `forms/`와 무관하게 동작한다.
 
@@ -89,6 +92,17 @@ python3 scripts/lint_items.py
 ```
 
 스키마 정본은 [docs/02-blueprint.md](docs/02-blueprint.md)의 "frontmatter 스키마" 절. `items/mc/_template.md`를 복사해서 시작한다.
+
+## 검증 규율
+
+이 레포에서 실제로 사고가 났던 것들이다.
+
+1. **검사를 추가하면 그 자리에서 고의로 깨뜨려 FAIL을 확인하고 원복한다.** 정답지의 정답을 조작해도 린트가 PASS하던 구멍이 있었고, 정규식 버그로 단독 문항 8개를 놓친 적이 있다.
+2. **파싱할 섹션을 못 찾으면 폴백하지 말고 실패시킨다.** 섹션을 못 찾은 측정 스크립트가 파일 전체로 폴백해 글자수가 2배로 부풀었고, 존재하지 않는 결함 2건을 보고했다가 철회했다.
+3. **에이전트(서브에이전트 포함)의 자기 보고를 근거로 쓰지 않는다.** 원문을 읽는 패스만이 근거다.
+4. **LLM 채점은 차원별 독립 컨텍스트로 돌린다.** 캘리브레이션 회차에는 판단형 패스에 앵커를 주지 않는다. [rubrics/llm-scorer-prompt.md](rubrics/llm-scorer-prompt.md).
+5. **앵커를 추가할 때 답안을 쓴 쪽이 점수까지 매기지 않는다.** 점수를 비운 채 다른 모델에 먼저 채점시키고, 의도와 수렴할 때만 확정한다.
+6. **루브릭·채점 규칙 변경은 임의로 반영하지 않는다.** [docs/12-open-issues.md](docs/12-open-issues.md) A절의 항목은 설계 결정이 먼저다.
 
 ## 채점·리포트를 수정할 때
 

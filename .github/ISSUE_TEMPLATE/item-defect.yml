@@ -1,0 +1,41 @@
+name: 문항·루브릭 결함
+description: 정답이 모호하거나, 두 축에 걸치거나, 루브릭 기준이 흔들리는 문제
+labels: ["item-defect"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이미 알려진 결함은 [docs/12-open-issues.md](https://github.com/yohan-work/axst/blob/main/docs/12-open-issues.md)와 [docs/10-calibration-findings.md](https://github.com/yohan-work/axst/blob/main/docs/10-calibration-findings.md)에 있습니다. 먼저 확인해 주세요.
+  - type: input
+    id: target
+    attributes:
+      label: 대상
+      description: 문항 id 또는 루브릭 파일
+      placeholder: MC-VER-003 / rubrics/fr-02.md D3
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 유형
+      options:
+        - 정답이 모호하다 (복수 정답 가능)
+        - 축 배정이 틀렸다 (결정트리와 불일치)
+        - 출제 규칙 위반 (툴 상식, 단서 노출, 길이 비율 등)
+        - 오답 진단이 오개념을 설명하지 못한다
+        - 루브릭 기준이 모호하거나 도달 불가능하다
+        - 기타
+    validations:
+      required: true
+  - type: textarea
+    id: detail
+    attributes:
+      label: 무엇이 문제인가
+      description: 가능하면 어떤 응답이 어떤 이유로 잘못 채점되는지 구체적으로 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 근거
+      description: 응답 사례, 규칙 문서의 해당 절, 채점 결과 등. **실제 응시자의 응답 원문이나 개인정보는 붙이지 마세요.**
