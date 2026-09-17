@@ -148,7 +148,8 @@ L4는 교육 수요가 아니라 **공급**이다. 처방은 [06-prescription.md
 | 4 LLM 채점 | `pass-*.md` 를 패스마다 **새 대화**에 붙여넣고 답변 전체를 `pilot/work/out-<패스>.txt` 로 저장 |
 | 4 가져오기 | `fr_import.py pilot/work/` — 줄 누락·범위·상한 계산이 어긋나면 파일을 쓰지 않는다 |
 | 5 인간 표본 | `fr_import.py pilot/work/ --template h.csv` → 표본 줄만 채움 → `--csv h.csv` → `--compare pilot/work/fr-scores.human.json` |
-| 6 총점·레벨 | `score.py <응답들> --fr-scores pilot/work/fr-scores.final.json` |
+| 6 총점·레벨 | `score.py <응답들> --fr-scores pilot/work/fr-scores.final.json` (채점자용 채점표) |
+| 7 리포트 | `report.py <응답들> --fr-scores pilot/work/fr-scores.final.json --org "<조직>"` → `pilot/reports/` 개인·조직 HTML. 금지 표현·n 규칙을 검사하고 어긋나면 쓰지 않는다 |
 
 패킷에는 식별 코드 대신 불투명 번호(`R01`…)만 실린다. 번호 ↔ 응답 대응표(`idmap.json`)는 작업 폴더에만 남는다.
 
