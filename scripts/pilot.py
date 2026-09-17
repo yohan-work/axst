@@ -162,12 +162,10 @@ def cmd_reports(a):
     if rc == 0:
         if frs:
             print_persona_penalties(rs, score.load_fr_scores(frs))
-        fit = pathlib.Path(a.work) / 'fit.csv'
-        if a.round == '파일럿' and not fit.exists():
-            with fit.open('w', encoding='utf-8-sig', newline='') as f:
-                w = csv.writer(f); w.writerow(['응답코드', '납득'])
-                for r in sorted(rs, key=response_key): w.writerow([response_key(r), ''])
-            print(f"\n리포트 납득도 회신 칸: {rel(fit)} — 회신(1~5)이 오면 채운다. pilot.py gate 가 읽는다.")
+        if a.round == '파일럿':
+            fit, added = write_fit_template(pathlib.Path(a.work) / 'fit.csv', [response_key(r) for r in rs])
+            if added:
+                print(f"\n리포트 납득도 회신 칸 {added}개 추가: {rel(fit)} — 회신(1~5)이 오면 채운다. pilot.py gate 가 읽는다.")
         print("\n배포 전: 개인 리포트는 본인에게만 보낸다. 조직 리포트의 '출구 전략 체크리스트' 칸을 채운다.")
     return rc
 
@@ -205,17 +203,31 @@ TIME_LIMIT_SEC = 35 * 60
 PASS, FAIL, HOLD = '통과', '미달', '판정 불가'
 
 
+def group_weights(pts, g):
+    """상위·하위 g 자리에 각 응답이 차지하는 몫. 경계에 걸린 동점자는 남은 자리를 똑같이 나눠 갖는다.
+    그러지 않으면 누가 그룹에 드는지가 파일 이름 순서로 정해져 d 가 우연히 음수가 된다."""
+    def side(order):
+        w, left, i = [0.0] * len(pts), g, 0
+        while left > 0 and i < len(order):
+            tie = [j for j in order[i:] if pts[j] == pts[order[i]]]
+            share = min(1.0, left / len(tie))
+            for j in tie: w[j] = share
+            left -= share * len(tie); i += len(tie)
+        return w
+    asc = sorted(range(len(pts)), key=lambda j: pts[j])
+    return side(asc[::-1]), side(asc)
+
+
 def item_stats(evs, key):
     """문항별 p(최선 정답률)·p_worst·d. d 는 객관식 득점 상위 27% − 하위 27% 의 정답률(최소 1명씩)."""
     n = len(evs)
     g = max(1, math.ceil(n * 0.27))
-    ranked = sorted(evs, key=lambda e: e['pts'])
-    low, high = ranked[:g], ranked[-g:]
+    high, low = group_weights([e['pts'] for e in evs], g)
     out = {}
     for seq, k in key.items():
-        best = lambda e: e['picks'][seq]['best'] == k['answer']
-        st = {'p': sum(map(best, evs)) / n,
-              'd': sum(map(best, high)) / g - sum(map(best, low)) / g}
+        best = [e['picks'][seq]['best'] == k['answer'] for e in evs]
+        st = {'p': sum(best) / n,
+              'd': sum(h * b for h, b in zip(high, best)) / g - sum(l * b for l, b in zip(low, best)) / g}
         if k['worst']:
             st['p_worst'] = sum(1 for e in evs if e['picks'][seq]['worst'] == k['worst']) / n
         out[seq] = st
@@ -233,6 +245,22 @@ def broken_items(stats):
         if st['d'] < 0: why.append(f"d {st['d']:+.0%} < 0")
         if why: bad[seq] = why
     return bad
+
+
+def write_fit_template(path, codes):
+    """회신 칸을 만든다. 이미 있으면 적힌 회신은 두고 빠진 응답 코드만 덧붙인다(늦게 낸 응답)."""
+    path = pathlib.Path(path)
+    rows = []
+    if path.exists():
+        with path.open(encoding='utf-8-sig', newline='') as f:
+            rows = [[r.get('응답코드', ''), r.get('납득', '')] for r in csv.DictReader(f)]
+    have = {c for c, _ in rows}
+    new = [[c, ''] for c in sorted(set(codes) - have)]
+    if new or not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('w', encoding='utf-8-sig', newline='') as f:
+            w = csv.writer(f); w.writerow(['응답코드', '납득']); w.writerows(rows + new)
+    return path, len(new)
 
 
 def load_fit(path):
@@ -281,10 +309,16 @@ def gate(rs, key, llm=None, human=None, fit=None, final=None):
         rows.append(('사람–LLM 불일치', '—', HOLD, "fr-scores.json 과 fr-scores.human.json 이 필요하다 (pilot.py compare)"))
     else:
         _, diffs = fr_import.compare(llm, human)
+        missing = [d for d in diffs if d[2] == '-']          # 사람은 채점했는데 LLM 점수가 없다 — 불일치가 아니다
+        real = [d for d in diffs if d[2] != '-']
         sampled = sum(len(v) for v in human.values())
-        share = len(diffs) / sampled if sampled else 0
-        rows.append(('사람–LLM 불일치', f"{share:.0%} ({len(diffs)}/{sampled}답안)", PASS if sampled and share < 0.20 else FAIL,
-                     "기준 < 20% — 어느 차원이든 2점 이상 또는 감점 판정 차이"))
+        if missing or not sampled:
+            rows.append(('사람–LLM 불일치', f"LLM 점수 없음 {len(missing)}건 / 표본 {sampled}답안", HOLD,
+                         "표본 답안의 LLM 점수가 빠졌다 — pilot.py import 를 다시 확인한다"))
+        else:
+            share = len(real) / sampled
+            rows.append(('사람–LLM 불일치', f"{share:.0%} ({len(real)}/{sampled}답안)", PASS if share < 0.20 else FAIL,
+                         "기준 < 20% — 어느 차원이든 2점 이상 또는 감점 판정 차이"))
     # 5 결과 분산
     if final or llm:
         for r in rs: score.attach_fr_scores(r, final or llm)

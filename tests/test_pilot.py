@@ -146,6 +146,27 @@ class Gate(unittest.TestCase):
         st = pilot.item_stats(evs, self.key)
         self.assertEqual((st[1]['p'], st[1]['d']), (0.5, 1.0))
 
+    def test_ties_do_not_depend_on_file_order(self):
+        # 12명, g=4. 점수 30 이 4~7위에 네 명 몰려 있으면 상위 마지막 자리 하나를 넷이 1/4씩 나눈다
+        pts = [50, 45, 40, 30, 30, 30, 30, 20, 15, 10, 5, 0]
+        high, low = pilot.group_weights(pts, 4)
+        self.assertEqual(high, [1, 1, 1, .25, .25, .25, .25, 0, 0, 0, 0, 0])
+        self.assertEqual(low, [0] * 8 + [1] * 4)
+        mk = lambda p, ok: {'pts': p, 'picks': {s: {'best': k['answer'] if ok else 0, 'worst': k['worst']}
+                                                 for s, k in self.key.items()}}
+        # 동점자 넷 중 하나만 1번을 맞혔다 — 파일 순서를 바꿔도 d 는 같아야 한다
+        oks = [True, True, True, False, False, False, True, False, False, False, False, False]
+        base = [mk(p, ok) for p, ok in zip(pts, oks)]
+        import random
+        rng, ds = random.Random(7), set()
+        for _ in range(40):
+            rng.shuffle(base)
+            ds.add(round(pilot.item_stats(base, self.key)[1]['d'], 6))
+        self.assertEqual(ds, {round((3 + .25) / 4 - 0, 6)})
+        # 모두 동점이면 d = 0
+        flat = [mk(10, i % 2 == 0) for i in range(12)]
+        self.assertAlmostEqual(pilot.item_stats(flat, self.key)[1]['d'], 0)
+
     def test_disagreement_and_spread(self):
         llm = {r['rid']: r['fr_scores'] for r in self.base}
         human = {k: copy.deepcopy(v) for k, v in list(llm.items())[:5]}
@@ -155,6 +176,9 @@ class Gate(unittest.TestCase):
         for k in list(human)[1:3]: human[k]['FR-02']['D2'] -= 2                                # 3/10 = 30%
         self.assertEqual(self.rows(llm=llm, human=human)['사람–LLM 불일치'][1], pilot.FAIL)
         self.assertEqual(self.rows(llm=llm)['결과 분산'][1], pilot.PASS)
+        partial = {k: v for k, v in llm.items() if k != next(iter(human))}                   # LLM 점수 누락
+        got = self.rows(llm=partial, human={k: llm[k] for k in list(llm)[:5]})['사람–LLM 불일치']
+        self.assertEqual(got[1], pilot.HOLD)
 
     def test_fit(self):
         codes = [r['rid'] for r in self.base]
@@ -179,6 +203,15 @@ class Gate(unittest.TestCase):
         for n, want in ((4, pilot.PASS), (5, pilot.FAIL)):
             with self.subTest(n=n), mock.patch.object(pilot, 'broken_items', lambda st, n=n: {i: ['x'] for i in range(1, n + 1)}):
                 self.assertEqual(self.rows()['보류 후보 문항'][1], want)
+
+    def test_fit_template_merges_late_codes(self):
+        f = pathlib.Path(tempfile.mkdtemp()) / 'fit.csv'
+        self.assertEqual(pilot.write_fit_template(f, ['A', 'B'])[1], 2)
+        f.write_text('응답코드,납득\nA,5\nB,\n', encoding='utf-8-sig')                 # A 회신 적음
+        self.assertEqual(pilot.write_fit_template(f, ['A', 'B', 'C'])[1], 1)            # 늦게 낸 C
+        self.assertEqual(pilot.load_fit(f), {'A': 5})
+        self.assertIn('C,', f.read_text(encoding='utf-8-sig'))
+        self.assertEqual(pilot.write_fit_template(f, ['A', 'B', 'C'])[1], 0)
 
     def test_survey_summary(self):
         rs = copy.deepcopy(self.base)
