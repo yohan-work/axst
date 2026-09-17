@@ -84,7 +84,7 @@ python3 scripts/score.py responses/*.json --cohort                  # 조직 집
 python3 scripts/report.py responses/*.json --fr-scores work/fr-scores.json --org "○○본부"  # 인쇄용 개인·조직 리포트
 ```
 
-리포트가 어떻게 나오는지는 합성 데이터로 만든 [개인 리포트 샘플](docs/samples/report-individual.sample.html)과 [조직 리포트 샘플](docs/samples/report-org.sample.html)을 내려받아 브라우저로 열어 보면 됩니다(GitHub 화면에서는 HTML 소스로 보입니다). 조직에 파일럿을 제안할 때는 [1쪽 제안서 양식](docs/13-pilot-proposal.md)을 채워 씁니다.
+리포트가 어떻게 나오는지는 합성 데이터로 만든 [개인 리포트 샘플](docs/samples/report-individual.sample.html)과 [조직 리포트 샘플](docs/samples/report-org.sample.html)을 내려받아 브라우저로 열어 보면 됩니다(GitHub 화면에서는 HTML 소스로 보입니다). 조직에 파일럿을 제안할 때는 [1쪽 제안서 양식](docs/13-pilot-proposal.md)을 채워 쓰고, 운영은 [파일럿 런북](docs/14-pilot-runbook.md)의 순서대로 `scripts/pilot.py` 명령 하나로 진행합니다(혼자 먼저 해 보는 절차 포함).
 
 > [!CAUTION]
 > 응답은 개인정보입니다. `pilot/responses/`에 두면 `.gitignore`로 커밋에서 제외됩니다.
@@ -93,7 +93,7 @@ python3 scripts/report.py responses/*.json --fr-scores work/fr-scores.json --org
 
 | 나는 | 읽을 것 |
 |---|---|
-| 진단 도입을 검토하는 HRD 담당자 | [파일럿 제안서](docs/13-pilot-proposal.md) → [리포트 샘플](docs/samples/report-org.sample.html) → [스폰서 합의문](docs/09-sponsor-agreement.md) → [시행 절차](docs/08-administration.md) |
+| 진단 도입을 검토하는 HRD 담당자 | [파일럿 런북](docs/14-pilot-runbook.md) → [파일럿 제안서](docs/13-pilot-proposal.md) → [리포트 샘플](docs/samples/report-org.sample.html) → [스폰서 합의문](docs/09-sponsor-agreement.md) → [시행 절차](docs/08-administration.md) |
 | 채점자 | [채점 기준](docs/04-scoring.md) → 루브릭 [FR-01](rubrics/fr-01.md) · [FR-02](rubrics/fr-02.md) → [LLM 채점 프로토콜](rubrics/llm-scorer-prompt.md) |
 | 결과를 해석·처방하는 사람 | [리포트 템플릿](docs/05-report-templates.md) → [처방](docs/06-prescription.md) |
 | 문항을 쓰거나 고치는 사람 | [CONTRIBUTING.md](CONTRIBUTING.md) → [축 정의](docs/01-axes.md) → [출제 규칙](docs/03-item-writing-rules.md) |
@@ -119,7 +119,7 @@ axst/
 ├── personas/       직무 페르소나 6종 (HR · SALES · MFG · FIN · DEV · STAFF)
 ├── selfreport/     자기보고 3문항
 ├── forms/          응시본 · 정답지 · MANIFEST — 모든 값이 items/ 와 일치해야 한다
-├── scripts/        lint_items.py · build_web_form.py · score.py · fr_import.py · report.py · make_samples.py
+├── scripts/        pilot.py(운영) · lint_items.py · build_web_form.py · score.py · fr_import.py · report.py · make_samples.py
 ├── tests/          채점기 회귀 테스트
 ├── pilot/          문항 분석 기록 (responses/ 는 커밋하지 않음)
 └── docs/           설계 문서
@@ -137,6 +137,7 @@ axst/
     ├── 11-synthetic-pilot     합성 파일럿 S0
     ├── 12-open-issues         열린 과제
     ├── 13-pilot-proposal      1쪽 파일럿 제안서 양식
+    ├── 14-pilot-runbook       파일럿 운영 순서와 명령
     ├── samples/               합성 데이터로 만든 리포트 샘플
     └── 99-changelog           변경 기록과 설계 결정 근거
 ```
