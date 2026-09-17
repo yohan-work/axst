@@ -129,6 +129,26 @@ class Reports(unittest.TestCase):
         self.assertEqual(report.cell(4, 12), '-')
         self.assertEqual(report.cell(5, 12), '5명 (42%)')
 
+    def test_org_persona_penalty_cells(self):
+        # docs/05: 22번 감점은 페르소나별로. 응답 5건 미만 페르소나는 칸을 가린다("2명 중 1건"은 사람을 가리킨다)
+        evs = []
+        for i in range(12):
+            r = copy.deepcopy(self.responses[i])
+            pk, pen = ('SALES', -5 if i < 2 else 0) if i < 7 else ('STAFF', -5 if i == 7 else 0)
+            r['free_response']['FR-02']['persona'] = pk
+            sc = r['fr_scores']['FR-02']
+            sc['penalty'] = pen
+            sc['total'] = max(0, sum(sc[d] for d in ('D1', 'D2', 'D3', 'D4')) + pen)
+            evs.append(report.evaluate(r, self.key))
+        doc = report.org_html(evs, self.key, self.tpl, self.rx)
+        self.assertRegex(doc, r'<td>SALES</td><td class="num">7명</td><td class="num">2건 \(29%\)</td>')
+        self.assertRegex(doc, r'<td>STAFF</td><td class="num">5명</td><td class="num">1건 \(20%\)</td>')
+        few = copy.deepcopy(evs)
+        for e in few[8:]:
+            e['resp']['free_response']['FR-02']['persona'] = 'FIN'
+        doc = report.org_html(few, self.key, self.tpl, self.rx)
+        self.assertRegex(doc, r'<td>STAFF</td><td class="num">-</td><td class="num">-</td><td class="num">-</td>')
+
     def test_org_catches_individual_key(self):
         evs = [self.ev(i) for i in range(12)]
         doc = report.org_html(evs, self.key, self.tpl, self.rx)

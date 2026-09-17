@@ -438,11 +438,11 @@ def org_html(evs, key, tpl, rx, org='', round_label='파일럿'):
         if not ps:
             continue
         cnt = len(ps)
-        # 페르소나 응답이 5건 미만이면 비율 대신 건수만(docs/05). 응답 수 자체도 5명 미만이면 가린다
+        # 응답이 MIN_CELL 미만인 페르소나는 감점 칸을 가린다(docs/05). "2명 중 1건"은 사람을 가리킨다
         f5, f2 = ps.count(-5), ps.count(-2)
-        show = (lambda x: f"{x}건 ({x / cnt:.0%})") if cnt >= MIN_CELL else (lambda x: f"{x}건")
+        show = lambda x: f"{x}건 ({x / cnt:.0%})" if cnt >= MIN_CELL else "-"
         B.append(f'<tr><td>{pk}</td><td class="num">{cell(cnt, n, pct=False)}</td>'
-                 f'<td class="num">{show(f5) if cnt >= MIN_CELL else "-"}</td><td class="num">{show(f2) if cnt >= MIN_CELL else "-"}</td></tr>')
+                 f'<td class="num">{show(f5)}</td><td class="num">{show(f2)}</td></tr>')
     B.append('</tbody></table><p class="muted">페르소나마다 위반할 기회가 달라 22번은 페르소나별로만 봅니다.</p></section>')
 
     # 6. 없어진 업무

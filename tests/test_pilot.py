@@ -75,6 +75,7 @@ class PilotFlow(unittest.TestCase):
         self.assertTrue((self.work / 'fr-scores.final.json').exists())
         rc, out = self.run_cmd('reports', '--org', '테스트')
         self.assertEqual(rc, 0, out)
+        self.assertIn('운영자 전용 — 22번 페르소나별 감점', out)
         self.assertEqual(len(list(self.out.glob('report-*.html'))), 13)
         # purge 는 --yes 없이는 지우지 않는다
         self.run_cmd('purge')
@@ -82,6 +83,13 @@ class PilotFlow(unittest.TestCase):
         self.run_cmd('purge', '--yes')
         self.assertFalse(self.work.exists()); self.assertFalse(self.out.exists())
         self.assertEqual(list(self.resp.glob('*.json')), [])
+
+    def test_persona_penalty_counts(self):
+        mk = lambda k, pk: {'rid': k, 'free_response': {'FR-02': {'persona': pk, 'text': 'x'}}}
+        rs = [mk('a', 'SALES'), mk('b', 'SALES'), mk('c', 'FIN'), mk('d', None), mk('e', 'FIN')]
+        scores = {'a': {'FR-02': {'penalty': -5}}, 'b': {'FR-02': {'penalty': 0}},
+                  'c': {'FR-02': {'penalty': -2}}, 'd': {'FR-02': {'penalty': -5}}}   # e 는 미채점
+        self.assertEqual(pilot.persona_penalties(rs, scores), {'SALES': [2, 1, 0], 'FIN': [1, 0, 1]})
 
     def test_reports_refuse_without_scores(self):
         rc, out = self.run_cmd('reports')

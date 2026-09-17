@@ -84,6 +84,7 @@ python3 scripts/pilot.py reports --org "○○본부"
 ## 7. 정리 (보고 후)
 
 - [ ] 문항 검증 결과(문항별 정답률·오답 분포·실측 소요 시간)를 [pilot/item-analysis.md](../pilot/item-analysis.md)에 기록한다
+- [ ] `pilot.py reports`가 터미널에 출력한 **22번 페르소나별 감점**을 같은 파일의 감점 표에 옮긴다. 조직 리포트에서는 5건 미만이라 가려지는 값이다([05](05-report-templates.md) §5)
 - [ ] 본 시행 여부를 스폰서와 정한다. 본 시행은 **비공개 시행 폼**으로 한다([08](08-administration.md#시행-폼을-만드는-절차))
 - [ ] [99-changelog.md](99-changelog.md)에 회차를 기록한다
 
