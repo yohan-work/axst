@@ -23,6 +23,7 @@ AXIS_LABEL = {'DEL':'위임 판단력','DSN':'작업 설계','VER':'검증·신�
 FLAG = {'강점':'🟢 강점 신호','보류':'⚪ 판정 보류','보완':'🟠 보완 필요'}
 LEVELS = [(0,39,'L1','미착수'),(40,59,'L2','개인 활용'),
           (60,79,'L3','업무 내재화'),(80,100,'L4','재설계자')]
+LEVEL_BOUNDARIES = ((39,40), (59,60), (79,80))
 
 def parse_item(path):
     t = path.read_text(encoding='utf-8')
@@ -107,11 +108,26 @@ def flags(correct_items, key, resp):
                      'signal': sig, 'note': note}
     return out
 
+def _level_at(score):
+    for lo, hi, code, name in LEVELS:
+        if lo <= score <= hi:
+            return code, name
+    return '?', '?'
+
+def _boundary_for(total):
+    band_lo, band_hi = max(0, total - 5), min(100, total + 5)
+    return next((b for b in LEVEL_BOUNDARIES
+                 if band_lo <= b[0] and band_hi >= b[1]), None)
+
 def level_of(total):
+    boundary = _boundary_for(total)
     for lo, hi, code, name in LEVELS:
         if lo <= total <= hi:
-            edge = any(abs(total - b) <= 0 for b in (39,40,59,60,79,80))
-            return code, name, edge
+            if boundary:
+                # 경계 밴드는 낮은 쪽 레벨의 처방을 적용한다.
+                lower_code, lower_name = _level_at(boundary[0])
+                return lower_code, lower_name, True
+            return code, name, False
     return '?', '?', False
 
 # ---------- 리포트 ----------
@@ -192,11 +208,17 @@ def render(resp, key, pts, correct_items, picks, missing, fl):
     if frp:
         tot = pts + sum(int(v.get('total', 0)) for v in frp.values())
         code, name, edge = level_of(tot)
+        if edge:
+            boundary = _boundary_for(tot)
+            upper_code, _ = _level_at(boundary[1])
+            level_text = f"{code}~{upper_code} 경계 → {code} 처방"
+        else:
+            level_text = f"{code} {name}"
         L.append("")
         L.append("## 총점")
         L.append("")
         L.append(f"객관식 {pts} + 주관식 {tot-pts} = **{tot} / 100**  → "
-                 f"**{code} {name}**{' (경계 — 낮은 쪽 처방 적용)' if edge else ''}")
+                 f"**{level_text}**")
         L.append("")
         L.append(f"> 총점은 ±5점 밴드로만 해석한다. 구간 **{max(0,tot-5)}~{min(100,tot+5)}**.")
     else:
