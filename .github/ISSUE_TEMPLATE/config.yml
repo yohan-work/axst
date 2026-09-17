@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 열린 과제 목록
+    url: https://github.com/yohan-work/axst/blob/main/docs/12-open-issues.md
+    about: 이미 알려진 결함과 결정 대기 항목

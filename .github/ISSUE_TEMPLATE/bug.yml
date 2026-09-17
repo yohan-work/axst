@@ -1,0 +1,33 @@
+name: 스크립트 버그
+description: lint_items.py · build_web_form.py · score.py 또는 온라인 응시본의 오작동
+labels: ["bug"]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: 실행한 명령
+      placeholder: python3 scripts/score.py responses/*.json --cohort
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      description: 출력이나 에러 메시지를 붙여 주세요.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 결과
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python 버전
+      placeholder: "3.12.4"
+  - type: markdown
+    attributes:
+      value: "**응답 JSON을 첨부할 때는 이름·주관식 원문 등 개인정보를 지워 주세요.**"
