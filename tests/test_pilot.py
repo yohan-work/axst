@@ -163,6 +163,12 @@ class Gate(unittest.TestCase):
             rng.shuffle(base)
             ds.add(round(pilot.item_stats(base, self.key)[1]['d'], 6))
         self.assertEqual(ds, {round((3 + .25) / 4 - 0, 6)})
+        # 부동소수점이면 참값 0 이 -1e-16 이 되어 'd<0' 으로 걸리던 경우(PR 리뷰 재현값)
+        pts2 = [0, 0, 1, 0, 1, 3, 3, 4, 3, 2, 0, 0, 4, 4, 0]
+        ok2 = [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1]
+        st = pilot.item_stats([mk(p, o) for p, o in zip(pts2, ok2)], self.key)[1]
+        self.assertEqual(st['d'], 0.0)
+        self.assertNotIn(1, pilot.broken_items({1: st}))
         # 모두 동점이면 d = 0
         flat = [mk(10, i % 2 == 0) for i in range(12)]
         self.assertAlmostEqual(pilot.item_stats(flat, self.key)[1]['d'], 0)
@@ -212,6 +218,11 @@ class Gate(unittest.TestCase):
         self.assertEqual(pilot.load_fit(f), {'A': 5})
         self.assertIn('C,', f.read_text(encoding='utf-8-sig'))
         self.assertEqual(pilot.write_fit_template(f, ['A', 'B', 'C'])[1], 0)
+        # 운영자가 붙인 열은 늦은 응답이 덧붙여져도 남는다
+        f.write_text('응답코드,납득,메모\nA,5,회신 9/30\nB,,\nC,,\n', encoding='utf-8-sig')
+        pilot.write_fit_template(f, ['A', 'B', 'C', 'D'])
+        text = f.read_text(encoding='utf-8-sig')
+        self.assertIn('메모', text); self.assertIn('A,5,회신 9/30', text); self.assertIn('D,,', text)
 
     def test_fit_excel_encodings(self):
         # 한국어 윈도우 엑셀의 기본 CSV 저장은 CP949 다

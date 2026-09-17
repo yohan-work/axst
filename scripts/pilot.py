@@ -15,6 +15,7 @@
 """
 import io, sys, csv, copy, json, math, random, shutil, pathlib, argparse
 from collections import Counter
+from fractions import Fraction
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import score, fr_import, report  # noqa: E402
@@ -209,11 +210,12 @@ PASS, FAIL, HOLD = '통과', '미달', '판정 불가'
 def group_weights(pts, g):
     """상위·하위 g 자리에 각 응답이 차지하는 몫. 경계에 걸린 동점자는 남은 자리를 똑같이 나눠 갖는다.
     그러지 않으면 누가 그룹에 드는지가 파일 이름 순서로 정해져 d 가 우연히 음수가 된다."""
+    # 몫은 분수로 계산한다. 부동소수점이면 참값 d=0 이 -1e-16 이 되어 'd<0' 으로 걸린다
     def side(order):
-        w, left, i = [0.0] * len(pts), g, 0
+        w, left, i = [Fraction(0)] * len(pts), Fraction(g), 0
         while left > 0 and i < len(order):
             tie = [j for j in order[i:] if pts[j] == pts[order[i]]]
-            share = min(1.0, left / len(tie))
+            share = min(Fraction(1), left / len(tie))
             for j in tie: w[j] = share
             left -= share * len(tie); i += len(tie)
         return w
@@ -229,8 +231,8 @@ def item_stats(evs, key):
     out = {}
     for seq, k in key.items():
         best = [e['picks'][seq]['best'] == k['answer'] for e in evs]
-        st = {'p': sum(best) / n,
-              'd': sum(h * b for h, b in zip(high, best)) / g - sum(l * b for l, b in zip(low, best)) / g}
+        d = (sum(h * b for h, b in zip(high, best)) - sum(l * b for l, b in zip(low, best))) / g
+        st = {'p': sum(best) / n, 'd': float(d)}
         if k['worst']:
             st['p_worst'] = sum(1 for e in evs if e['picks'][seq]['worst'] == k['worst']) / n
         out[seq] = st
@@ -268,13 +270,16 @@ def write_fit_template(path, codes):
     path = pathlib.Path(path)
     rows = []
     if path.exists():
-        rows = [[r.get('응답코드', ''), r.get('납득', '')] for r in read_fit_rows(path)]
-    have = {c for c, _ in rows}
-    new = [[c, ''] for c in sorted(set(codes) - have)]
+        rows = read_fit_rows(path)
+    have = {r.get('응답코드', '') for r in rows}
+    new = [{'응답코드': c, '납득': ''} for c in sorted(set(codes) - have)]
     if new or not path.exists():
+        # 운영자가 엑셀에서 붙인 열(메모·회신일)은 그대로 둔다
+        fields = ['응답코드', '납득'] + [k for k in (rows[0].keys() if rows else []) if k not in ('응답코드', '납득') and k]
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open('w', encoding='utf-8-sig', newline='') as f:
-            w = csv.writer(f); w.writerow(['응답코드', '납득']); w.writerows(rows + new)
+            w = csv.DictWriter(f, fieldnames=fields, extrasaction='ignore', restval='')
+            w.writeheader(); w.writerows(rows + new)
     return path, len(new)
 
 
