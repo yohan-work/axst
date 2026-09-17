@@ -262,7 +262,13 @@ def read_fit_rows(path):
             continue
     else:
         raise ValueError(f"{pathlib.Path(path).name}: 글자 인코딩을 읽지 못했다 — 엑셀에서 'CSV UTF-8' 형식으로 다시 저장한다")
-    return list(csv.DictReader(io.StringIO(text, newline='')))
+    reader = csv.DictReader(io.StringIO(text, newline=''))
+    missing = {'응답코드', '납득'} - {(h or '').strip() for h in (reader.fieldnames or [])}
+    if missing:
+        # 열 이름을 바꾸거나 맥 엑셀 'CSV'(UTF-8 아님) 저장으로 한글 헤더가 깨지면 회신이 조용히 사라진다
+        raise ValueError(f"{pathlib.Path(path).name}: 열 {', '.join(sorted(missing))} 이(가) 없다 — "
+                         "첫 줄을 '응답코드,납득' 으로 되돌리고 'CSV UTF-8' 로 저장한다")
+    return [{(k or '').strip(): v for k, v in row.items()} for row in reader]
 
 
 def write_fit_template(path, codes):

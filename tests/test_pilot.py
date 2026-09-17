@@ -244,6 +244,15 @@ class Gate(unittest.TestCase):
         self.assertEqual(pilot.load_fit(f), {'A': 5})
         self.assertEqual(pilot.write_fit_template(f, ['A', 'B'])[1], 1)
         self.assertEqual(pilot.load_fit(f), {'A': 5})                    # 덧붙인 뒤에도 회신 유지
+        for header in ('응답코드,납득(1~5)', '??????,??'):                          # 열 이름 변경 · 맥 엑셀 CSV 로 깨진 헤더
+            f.write_text(header + '\nA,5\n', encoding='utf-8')
+            with self.subTest(header=header), self.assertRaises(ValueError) as cm:
+                pilot.load_fit(f)
+            self.assertIn('응답코드,납득', str(cm.exception))
+            with self.assertRaises(ValueError):
+                pilot.write_fit_template(f, ['A', 'B'])                                 # 빈 행을 한 벌 더 붙이지 않는다
+        f.write_text(' 응답코드 , 납득 \nA,4\n', encoding='utf-8')                  # 앞뒤 공백만 있는 헤더는 받는다
+        self.assertEqual(pilot.load_fit(f), {'A': 4})
         f.write_bytes(b'\x80\x81\xff\xfe\x00')
         with self.assertRaises(ValueError) as cm:
             pilot.load_fit(f)
