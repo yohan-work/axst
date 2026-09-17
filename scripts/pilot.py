@@ -166,8 +166,8 @@ def cmd_reports(a):
         if a.round == '파일럿':
             try:
                 fit, added = write_fit_template(pathlib.Path(a.work) / 'fit.csv', [response_key(r) for r in rs])
-            except ValueError as e:
-                print(f"\n리포트는 만들었지만 회신 칸을 갱신하지 못했다: {e}", file=sys.stderr); return 1
+            except (ValueError, OSError) as e:   # OSError: 윈도우 엑셀이 파일을 열어 잠가 둔 경우
+                print(f"\n리포트는 만들었지만 회신 칸을 갱신하지 못했다: {e} — 엑셀에서 fit.csv 를 닫고 다시 실행한다", file=sys.stderr); return 1
             if added:
                 print(f"\n리포트 납득도 회신 칸 {added}개 추가: {rel(fit)} — 회신(1~5)이 오면 채운다. pilot.py gate 가 읽는다.")
         print("\n배포 전: 개인 리포트는 본인에게만 보낸다. 조직 리포트의 '출구 전략 체크리스트' 칸을 채운다.")
@@ -385,8 +385,8 @@ def cmd_gate(a):
     llm, human, final = load(work / 'fr-scores.json'), load(work / 'fr-scores.human.json'), load(work / 'fr-scores.final.json')
     try:
         fit = load_fit(work / 'fit.csv')
-    except ValueError as e:
-        print(e, file=sys.stderr); return 1
+    except (ValueError, OSError) as e:
+        print(f"fit.csv 를 읽지 못했다: {e} — 엑셀에서 열려 있으면 닫고 다시 실행한다", file=sys.stderr); return 1
     rows = gate(rs, score.load_key(), llm, human, fit, final)
     if fit:
         unmatched = sorted(set(fit) - {response_key(r).strip().upper() for r in rs})

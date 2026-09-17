@@ -81,6 +81,12 @@ class PilotFlow(unittest.TestCase):
         self.assertIn('관문 B', out)
         self.assertIn('[판정 불가] 리포트 납득도', out)                     # 회신 전이라 보류
         self.assertEqual(rc, 1)
+        from unittest import mock
+        with mock.patch.object(pilot, 'read_fit_rows', side_effect=PermissionError('locked')):   # 엑셀이 잠근 파일
+            rc, out = self.run_cmd('gate')
+            self.assertEqual(rc, 1); self.assertIn('닫고 다시 실행', out)
+            rc, out = self.run_cmd('reports', '--org', '테스트')
+            self.assertEqual(rc, 1); self.assertIn('닫고 다시 실행', out)
         with (self.work / 'fit.csv').open('a', encoding='utf-8') as f:
             f.write('ZZZZZZ,5\n')                                                   # 오타 코드
         _, out = self.run_cmd('gate')
