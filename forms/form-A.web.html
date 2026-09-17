@@ -196,6 +196,17 @@ fieldset{border:0;margin:0;padding:0;min-width:0}
   font-size:12px;display:grid;place-items:center;font-weight:600}
 .steps .nav{margin-top:10px}
 .msg{font-size:13px;margin:8px 0 0;color:var(--ink-soft)}
+.survey{margin:18px 0 0;padding:16px 16px 6px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.survey h2{font-size:17px;font-weight:600}
+.survey fieldset{border:0;margin:16px 0 0;padding:0;min-width:0}
+.survey legend{font-weight:600;font-size:14px;padding:0;margin-bottom:8px}
+.sv-nums{display:flex;flex-wrap:wrap;gap:6px}
+.sv-nums label,.sv-scale label{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--line);
+  border-radius:6px;background:var(--surface);font-family:var(--mono);font-size:13px;cursor:pointer}
+.sv-scale label{font-family:inherit}
+.sv-nums label.on,.sv-nums label:has(input:checked),.sv-scale label.on,.sv-scale label:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+.sv-nums input,.sv-scale input{accent-color:var(--accent);margin:0}
+.sv-scale{display:flex;flex-wrap:wrap;gap:6px}
 details summary{cursor:pointer;color:var(--ink-soft);font-size:13px;margin-top:22px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -326,6 +337,23 @@ details summary{cursor:pointer;color:var(--ink-soft);font-size:13px;margin-top:2
     <p style="font-size:13px;color:var(--ink-soft)">담당자에게 파일을 보낼 때 이 코드를 함께 적어 주십시오.</p>
   </div>
   <div id="warnBox"></div>
+  <section class="survey" aria-labelledby="svTitle">
+    <h2 id="svTitle">파일을 저장하기 전에 — 문항을 고치는 데 쓰는 질문 3개</h2>
+    <p class="msg">선택입니다. <strong>점수와 무관</strong>하고, 답하면 응답 파일에 함께 담깁니다. 답한 뒤에 파일을 저장해 주십시오.</p>
+    <fieldset><legend>1. 답을 고르기 어려울 만큼 헷갈렸던 문항이 있었습니까? (여러 개 선택)</legend>
+      <div class="sv-nums" id="svNums"></div>
+      <label class="field-label" for="svWhy">왜 헷갈렸는지 <span>(선택) — 한두 문장</span></label>
+      <input type="text" id="svWhy">
+    </fieldset>
+    <fieldset><legend>2. 문항의 상황이 내 업무에서 실제로 있을 법했습니까?</legend>
+      <div class="sv-scale" id="svReal"></div>
+    </fieldset>
+    <fieldset><legend>3. 22번 페르소나 6개 중 내 직무에 맞는 것이 있었습니까?</legend>
+      <div class="sv-scale" id="svFit"></div>
+      <label class="field-label" for="svRole">내 직무 <span>(맞는 것이 없었다면) — 예: 웹 퍼블리싱</span></label>
+      <input type="text" id="svRole">
+    </fieldset>
+  </section>
   <ol class="steps">
     <li><strong>응답 파일 저장</strong>
       <div class="nav"><button class="btn" type="button" id="dl">응답 파일 저장</button>
@@ -356,7 +384,8 @@ const mmss = s => Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
 
 function newState(){
   return {pid:"", rid:"", cur:"intro", startedAt:null, secStart:null, submittedAt:null,
-    spent:{intro:0,sr:0,mc:0,fr:0,done:0}, sr:{}, mc:{}, fr:{}, events:[], resumes:0, warned:{}};
+    spent:{intro:0,sr:0,mc:0,fr:0,done:0}, sr:{}, mc:{}, fr:{}, events:[], resumes:0, warned:{},
+    survey:{ambiguous:[], why:"", realism:null, persona_fit:null, role:""}};
 }
 let state = newState();
 let restoring = false, confirmStartOver = false;
@@ -510,6 +539,32 @@ function renderFR(){
   });
 }
 
+/* ---------- 응시 후 설문 (점수 미반영, 제출 뒤·파일 저장 전) ---------- */
+const REALISM=["1 전혀 없다","2","3 보통","4","5 매우 있을 법하다"], FIT=["있었다","비슷한 것만 있었다","없었다"];
+function refreshOut(){ if(state.submittedAt) $("#out").value=JSON.stringify(buildResponse(),null,2); }
+function svSet(k,v){ state.survey=Object.assign(newState().survey, state.survey); state.survey[k]=v; if(!restoring){save(); refreshOut();} }
+function renderSurvey(){
+  const nums=$("#svNums");
+  DATA.mc.map(m=>m.seq).concat(DATA.fr.map(f=>f.seq)).forEach(q=>{
+    const lab=el("label","",'<input type="checkbox" id="sv-q'+q+'" value="'+q+'">'+q);
+    lab.querySelector("input").onchange=e=>{
+      const cur=new Set((state.survey||{}).ambiguous||[]);
+      e.target.checked?cur.add(q):cur.delete(q);
+      svSet("ambiguous",[...cur].sort((a,b)=>a-b));
+    };
+    nums.appendChild(lab);
+  });
+  const radios=(box,name,opts,key,val)=>opts.forEach((o,i)=>{
+    const lab=el("label","",'<input type="radio" name="'+name+'" id="'+name+'-'+i+'">'+o);
+    lab.querySelector("input").onchange=()=>svSet(key,val(o,i));
+    $(box).appendChild(lab);
+  });
+  radios("#svReal","svReal",REALISM,"realism",(o,i)=>i+1);
+  radios("#svFit","svFit",FIT,"persona_fit",o=>o);
+  $("#svWhy").oninput=e=>svSet("why",e.target.value);
+  $("#svRole").oninput=e=>svSet("role",e.target.value);
+}
+
 /* 저장된 state를 화면 입력에 되살린다. change/input 이벤트를 흘려 표시를 맞추되 기록은 남기지 않는다. */
 function applyState(){
   restoring=true;
@@ -530,6 +585,12 @@ function applyState(){
     const ta=$("#ta-"+f.id); ta.value=v.text||""; fire(ta,"input");
     const pr=$("#pr-"+f.id); pr.value=v.ai_prompt||"";
   });
+  const sv=Object.assign(newState().survey, state.survey);
+  document.querySelectorAll('#svNums input').forEach(i=>{i.checked=sv.ambiguous.includes(+i.value); fire(i,"change");});
+  if(sv.realism){const r=$("#svReal-"+(sv.realism-1)); r.checked=true; fire(r,"change");}
+  const fi=FIT.indexOf(sv.persona_fit); if(fi>=0){const r=$("#svFit-"+fi); r.checked=true; fire(r,"change");}
+  $("#svWhy").value=sv.why; $("#svRole").value=sv.role;
+  state.survey=sv;
   $("#pid").value=state.pid||"";
   restoring=false; checkDup();
 }
@@ -612,6 +673,7 @@ function buildResponse(){
     selfreport:state.sr, mc:state.mc, unanswered_mc:miss,
     free_response:Object.fromEntries(DATA.fr.map(f=>{const v=state.fr[f.id]||{};
       return [f.id,{persona:v.persona||null,text:v.text||"",chars:charCount(v.text),ai_prompt:v.ai_prompt||""}]})),
+    survey:Object.assign(newState().survey, state.survey),
     events:state.events};
 }
 function finish(){
@@ -647,9 +709,11 @@ function fileName(){
 }
 
 /* ---------- 부팅 ---------- */
-renderSR(); renderMC(); renderFR();
+renderSR(); renderMC(); renderFR(); renderSurvey();
 /* :has() 미지원 브라우저용 선택 표시 */
-document.addEventListener("change",e=>{const i=e.target; if(i.type!=="radio")return;
+document.addEventListener("change",e=>{const i=e.target;
+  if(i.type==="checkbox"){const l=i.closest("label"); if(l)l.classList.toggle("on",i.checked); return;}
+  if(i.type!=="radio")return;
   document.querySelectorAll('input[name="'+i.name+'"]').forEach(x=>{const l=x.closest("label"); if(l)l.classList.toggle("on",x.checked)});});
 document.querySelectorAll("[data-next]").forEach(b=>b.onclick=()=>goto(b.dataset.next));
 $("#toastX").onclick=()=>{$("#toast").hidden=true};
