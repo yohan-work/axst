@@ -158,8 +158,37 @@ def cmd_reports(a):
     if a.org: args += ['--org', a.org]
     rc = report.main(args)
     if rc == 0:
+        if frs:
+            print_persona_penalties(rs, score.load_fr_scores(frs))
         print("\n배포 전: 개인 리포트는 본인에게만 보낸다. 조직 리포트의 '출구 전략 체크리스트' 칸을 채운다.")
     return rc
+
+
+def persona_penalties(rs, scores):
+    """22번 감점을 페르소나별로 센다. {persona: [응답 수, −5 건수, −2 건수]} — 페르소나 미선택·미채점은 뺀다."""
+    out = {}
+    for r in rs:
+        pk = ((r.get('free_response') or {}).get('FR-02') or {}).get('persona')
+        pen = ((scores.get(response_key(r)) or {}).get('FR-02') or {}).get('penalty')
+        if not pk or not isinstance(pen, int):
+            continue
+        row = out.setdefault(pk, [0, 0, 0])
+        row[0] += 1; row[1] += pen == -5; row[2] += pen == -2
+    return out
+
+
+def print_persona_penalties(rs, scores):
+    """조직 리포트는 5건 미만 페르소나를 가린다(docs/05). 파일럿 규모에서는 거의 다 가려지므로
+    운영자에게만 터미널로 보여 주고 pilot/item-analysis.md 에 옮기게 한다. 리포트 파일에는 쓰지 않는다."""
+    rows = persona_penalties(rs, scores)
+    if not rows:
+        return
+    print("\n운영자 전용 — 22번 페르소나별 감점 (리포트에 싣지 않는다. pilot/item-analysis.md 에 옮긴다)")
+    print(f"  {'페르소나':<6} {'응답':>4} {'−5':>4} {'−2':>4}")
+    for pk in ['HR', 'SALES', 'FIN', 'DEV', 'STAFF', 'MFG']:
+        if pk in rows:
+            n, f5, f2 = rows[pk]
+            print(f"  {pk:<6} {n:>4} {f5:>4} {f2:>4}")
 
 
 def cmd_purge(a):
