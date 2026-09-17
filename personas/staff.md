@@ -1,10 +1,11 @@
 ---
 key: STAFF
 label: 기획·지원
-sensitive_data: false
+sensitive_data: true
 hallucination_hook: "타사 운영 현황·업계 벤치마크 등 보유 자료에 없는 항목"
+anchor_items: [제도명, 신청 건수, 승인 건수, 신청 부서, 처리 소요일, 반려 사유 코드]
 chars: 184
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 ## 페르소나

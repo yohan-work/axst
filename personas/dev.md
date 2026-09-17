@@ -1,10 +1,11 @@
 ---
 key: DEV
 label: 개발·IT
-sensitive_data: false
+sensitive_data: true
 hallucination_hook: "장애 근본 원인·기술 부채 규모 등 보유 자료에 없는 항목"
+anchor_items: [발생일시, 심각도, 복구 소요 시간, 처리 상태, 연관 배포 번호]
 chars: 190
-updated: 2026-09-16
+updated: 2026-09-17
 ---
 
 ## 페르소나
