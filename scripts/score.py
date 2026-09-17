@@ -130,6 +130,65 @@ def level_of(total):
             return code, name, False
     return '?', '?', False
 
+FR_ITEMS = (('FR-01', 21), ('FR-02', 22))
+FR_DIMS = ('D1', 'D2', 'D3', 'D4')
+FR_PENALTIES = (0, -2, -5)
+HELD = '보류'
+
+def level_text(tot):
+    """'L2 개인 활용' 또는 'L2~L3 경계 → L2 처방'."""
+    code, name, edge = level_of(tot)
+    if edge:
+        upper_code, _ = _level_at(_boundary_for(tot)[1])
+        return f"{code}~{upper_code} 경계 → {code} 처방"
+    return f"{code} {name}"
+
+def _int_in(v, lo, hi, what):
+    if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+        raise ValueError(f"{what} 값 {v!r} — {lo}~{hi} 정수여야 한다")
+    return v
+
+def fr_total(entry):
+    """주관식 한 문항 점수 = max(0, D1+D2+D3+D4+감점). 판정 보류가 하나라도 있으면 None.
+
+    차원 점수가 있으면 전부 검증해서 합산한다(docs/04-scoring.md). 'total'만 있는 옛 형식도
+    받지만, 둘 다 있는데 어긋나면 손으로 고친 흔적이므로 실패시킨다."""
+    if not isinstance(entry, dict):
+        raise ValueError(f"주관식 점수 형식 오류: {entry!r}")
+    if any(d in entry for d in FR_DIMS):
+        vals = [entry.get(d) for d in FR_DIMS]
+        if HELD in vals or entry.get('held'):
+            return None
+        for d, v in zip(FR_DIMS, vals):
+            _int_in(v, 0, 5, d)
+        pen = entry.get('penalty', 0)
+        if pen not in FR_PENALTIES or isinstance(pen, bool):
+            raise ValueError(f"감점 값 {pen!r} — 0, -2, -5 중 하나여야 한다")
+        tot = max(0, sum(vals) + pen)
+        if 'total' in entry and entry['total'] != tot:
+            raise ValueError(f"total {entry['total']!r} 이 차원 합산 {tot} 과 다르다")
+        return tot
+    if 'total' not in entry:
+        raise ValueError(f"주관식 점수에 D1~D4 도 total 도 없다: {entry!r}")
+    return _int_in(entry['total'], 0, 20, 'total')
+
+def fr_points(resp):
+    """(주관식 합계 또는 None, 사유). 답안이 없는 문항은 0점, 답안이 있는데 점수가 없으면 미채점."""
+    frp = resp.get('fr_scores') or {}
+    fr = resp.get('free_response') or {}
+    if not frp:
+        return None, '미채점'
+    total = 0
+    for fid, _ in FR_ITEMS:
+        if fid in frp:
+            v = fr_total(frp[fid])
+            if v is None:
+                return None, '판정 보류'
+            total += v
+        elif (fr.get(fid) or {}).get('text'):
+            return None, '미채점'
+    return total, ''
+
 # ---------- 리포트 ----------
 def render(resp, key, pts, correct_items, picks, missing, fl):
     L = []
@@ -204,27 +263,20 @@ def render(resp, key, pts, correct_items, picks, missing, fl):
     L.append("주관식 40점은 [llm-scorer-prompt.md](../rubrics/llm-scorer-prompt.md) 프로토콜로 "
              "따로 채점한다 — 차원별 독립 4패스 + 감점 1패스. `--prompts` 로 패킷을 생성한다.")
 
-    frp = resp.get('fr_scores') or {}
-    if frp:
-        tot = pts + sum(int(v.get('total', 0)) for v in frp.values())
-        code, name, edge = level_of(tot)
-        if edge:
-            boundary = _boundary_for(tot)
-            upper_code, _ = _level_at(boundary[1])
-            level_text = f"{code}~{upper_code} 경계 → {code} 처방"
-        else:
-            level_text = f"{code} {name}"
+    frp_pts, why = fr_points(resp)
+    if frp_pts is not None:
+        tot = pts + frp_pts
         L.append("")
         L.append("## 총점")
         L.append("")
-        L.append(f"객관식 {pts} + 주관식 {tot-pts} = **{tot} / 100**  → "
-                 f"**{level_text}**")
+        L.append(f"객관식 {pts} + 주관식 {frp_pts} = **{tot} / 100**  → "
+                 f"**{level_text(tot)}**")
         L.append("")
         L.append(f"> 총점은 ±5점 밴드로만 해석한다. 구간 **{max(0,tot-5)}~{min(100,tot+5)}**.")
     else:
         L.append("")
-        L.append("> 주관식이 채점되지 않아 총점과 레벨을 산출하지 않았다. "
-                 "채점 후 응답 JSON에 `fr_scores` 를 넣고 다시 실행한다.")
+        L.append(f"> 주관식이 {why} 상태라 총점과 레벨을 산출하지 않았다. "
+                 "`scripts/fr_import.py` 로 채점 결과를 가져온 뒤 `--fr-scores` 로 다시 실행한다.")
     return "\n".join(L)
 
 # ---------- 주관식 채점 패킷 ----------
@@ -278,16 +330,33 @@ def _anchors(path):
     """실제 응답 채점에는 앵커를 준다(캘리브레이션 회차와 반대)."""
     return _scrub((ROOT/path).read_text(encoding='utf-8').split('## 캘리브레이션 채점표')[0])
 
-def build_prompts(responses, outdir):
+def response_key(r):
+    """응답을 가리키는 키. 응시본이 발급한 응답 코드(rid)가 우선, 없으면(옛 응답) 식별 코드."""
+    return r.get('rid') or r.get('respondent') or ''
+
+def build_prompts(responses, outdir, calibration=False):
+    """주관식 5패스 채점 패킷. 응시자 식별 코드 대신 불투명 번호(R01…)를 쓰고, 대응표는 idmap.json 에 둔다.
+
+    calibration=True 이면 판단형 패스(D1·D4)에 앵커를 싣지 않는다 — 캘리브레이션 회차에는
+    채점 대상이 앵커 자신이라 순환이 된다(rubrics/llm-scorer-prompt.md)."""
     outdir = pathlib.Path(outdir); outdir.mkdir(parents=True, exist_ok=True)
     personas = load_personas()
 
-    body = []
-    for r in responses:
-        rid = r.get('respondent') or '(미기재)'
-        for fid, seq in (('FR-01', 21), ('FR-02', 22)):
+    body, idmap, expected = [], {}, []
+    seen = {}
+    for i, r in enumerate(responses, 1):
+        pid, key = f"R{i:02d}", response_key(r)
+        if not key:
+            raise ValueError(f"응답 {i}번째에 응답 코드(rid)도 식별 코드도 없다 — 점수를 되돌려 붙일 수 없다")
+        if key in seen:
+            raise ValueError(f"응답 키 {key!r} 가 두 번 나온다 ({seen[key]}, {pid}) — 같은 응답을 두 번 넣었거나 식별 코드가 겹친다")
+        seen[key] = pid
+        idmap[pid] = {'key': key, 'respondent': r.get('respondent'), 'rid': r.get('rid'), 'items': [], 'held': []}
+        rid = pid
+        for fid, seq in FR_ITEMS:
             v = (r.get('free_response') or {}).get(fid) or {}
             if not v.get('text'): continue
+            idmap[pid]['items'].append(fid); expected.append(f"{pid}|{fid}")
             body.append(f"### 응답 {rid} · {seq}번 ({fid})")
             if fid == 'FR-02':
                 pk = v.get('persona')
@@ -296,7 +365,8 @@ def build_prompts(responses, outdir):
                     body.append("\n**선택한 페르소나: 미선택**\n")
                     verdict = ("**판정 보류 — 페르소나 미선택.** 답안 내용으로 페르소나를 추정하지 말고 "
                                "네 차원 모두 점수 칸에 `보류`라고만 쓴다")
-                    print(f"경고: 응답 {rid} 22번 페르소나 미선택 — 패킷에 판정 보류로 표시", file=sys.stderr)
+                    idmap[pid]['held'].append(fid)
+                    print(f"경고: 응답 {rid}({key}) 22번 페르소나 미선택 — 패킷에 판정 보류로 표시", file=sys.stderr)
                 elif pk not in personas:
                     raise ValueError(f"응답 {rid} FR-02: 페르소나 {pk!r} 를 personas/ 에서 찾지 못함 — "
                                      "응답 파일이나 personas/ 가 어긋났다")
@@ -333,13 +403,14 @@ def build_prompts(responses, outdir):
                   _sec('rubrics/fr-01.md', code + '.'), "",
                   "## FR-02 루브릭 (22번)", "", _principles('rubrics/fr-02.md'), "",
                   _sec('rubrics/fr-02.md', code + '.'), ""]
-        if judge:
+        if judge and not calibration:
             parts += ["---", "", "# 대조용 앵커", "",
                       _anchors('rubrics/fr-01-anchors.md'), "", "---", "",
                       _anchors('rubrics/fr-02-anchors.md'), ""]
         parts += ["---", "", "# 채점할 답안", "", answers_block, "", "---", "",
                   "# 출력", "", "답안 전부에 대해 위 순서로 출력하고, 마지막에 "
-                  "요약표(응답 · 근거 요약 · base · 상한 · 최종)를 붙인다."]
+                  "요약표(응답 · 근거 요약 · base · 상한 · 최종)를 붙인다.", "",
+                  _machine_block(code, expected)]
         (outdir/f"pass-{code}.md").write_text("\n".join(parts), encoding='utf-8')
 
     pen = ["# 채점 패스 — 리스크 감점 판정", "",
@@ -352,11 +423,39 @@ def build_prompts(responses, outdir):
            (ROOT/'rubrics/penalty-risk.md').read_text(encoding='utf-8'), "", "---", "",
            "# 판정할 답안", "", answers_block, "", "---", "",
            "# 출력", "", "답안마다 1) 인용 2) 감점 예외 대조 3) 판정(−5/−2/0)과 적용 규칙. "
-           "마지막에 요약표."]
+           "마지막에 요약표.", "", _machine_block('penalty', expected)]
     (outdir/"pass-penalty.md").write_text("\n".join(pen), encoding='utf-8')
+    (outdir/"idmap.json").write_text(json.dumps(idmap, ensure_ascii=False, indent=2), encoding='utf-8')
     print(f"주관식 채점 패킷 5개 생성: {outdir}/pass-{{D1,D2,D3,D4,penalty}}.md", file=sys.stderr)
     print("  프로토콜: 패스마다 독립 컨텍스트, temperature 0, 이전 패스 점수를 보여주지 않는다.",
           file=sys.stderr)
+    print(f"  LLM 답변은 {outdir}/out-{{D1,D2,D3,D4,penalty}}.txt 로 저장한 뒤 "
+          f"python3 scripts/fr_import.py {outdir} 를 실행한다.", file=sys.stderr)
+    if calibration:
+        print("  캘리브레이션 모드: 판단형 패스에 앵커를 싣지 않았다.", file=sys.stderr)
+
+MACHINE_OPEN = '<<<AXST'
+MACHINE_CLOSE = '>>>'
+
+def _machine_block(code, expected):
+    """패킷 끝의 기계 판독 블록 지시. scripts/fr_import.py 가 이 형식만 읽는다."""
+    if code == 'penalty':
+        example = "R01|FR-01|penalty=0|rule=없음"
+        rules = ["- `penalty`는 `0`, `-2`, `-5` 중 하나. `rule`에는 적용한 감점 규칙 이름(없으면 `없음`)"]
+    else:
+        example = "R01|FR-01|base=4|cap=none|final=4|comment=근거 한 줄"
+        rules = ["- `base`·`final`은 0~5 정수. 상한이 걸리지 않았으면 `cap=none`, 걸렸으면 `cap=2` 또는 `cap=3`",
+                 "- `final`은 `base`와 상한 중 작은 값이다",
+                 f"- 판정 보류(페르소나 미선택)는 `base={HELD}|cap=none|final={HELD}`",
+                 "- `comment`는 응시자에게 줄 한 줄 피드백이다. 점수 숫자를 쓰지 않는다"]
+    return "\n".join([
+        "# 기계 판독 블록 (반드시 맨 마지막에 한 번)", "",
+        "요약표 다음에 아래 형식의 블록을 **정확히 한 번** 출력한다. 채점 도구는 이 블록만 읽는다. "
+        "답안 하나당 한 줄이고, 아래 목록의 줄이 **빠짐없이, 순서대로** 있어야 한다.", "",
+        "```", f"{MACHINE_OPEN} pass={code}", example, MACHINE_CLOSE, "```", "",
+        *rules,
+        "- 한 줄 안에 줄바꿈과 `|` 를 쓰지 않는다", "",
+        "이 블록에 들어가야 할 줄: " + ", ".join(f"`{e}`" for e in expected)])
 
 # ---------- 조직 집계 ----------
 def cohort(rows, key):
@@ -390,13 +489,29 @@ def cohort(rows, key):
     L += ["", "> 개인을 식별할 수 있는 셀(n<5)은 표에 넣지 않는다. 개인 순위표를 만들지 않는다."]
     return "\n".join(L)
 
+# ---------- 주관식 점수 붙이기 ----------
+def load_fr_scores(path):
+    data = json.loads(pathlib.Path(path).read_text(encoding='utf-8'))
+    if data.get('schema') != 'axst-fr-scores-1':
+        raise ValueError(f"{path}: fr_import.py 가 만든 파일이 아니다 (schema 불일치)")
+    return data['scores']
+
+def attach_fr_scores(resp, scores):
+    """응답 키로 점수를 찾아 resp['fr_scores'] 에 넣는다. 응답 파일 자체는 고치지 않는다."""
+    k = response_key(resp)
+    if k in scores:
+        resp['fr_scores'] = scores[k]
+
 # ---------- CLI ----------
 def main():
     ap = argparse.ArgumentParser(description="AX Literacy 진단 응답 채점기")
     ap.add_argument('files', nargs='+', help='응답 JSON (온라인 응시본이 낸 것)')
     ap.add_argument('--prompts', metavar='DIR', help='주관식 5패스 채점 패킷을 DIR 에 생성')
     ap.add_argument('--cohort', action='store_true', help='조직 집계도 출력 (n>=10)')
+    ap.add_argument('--calibration', action='store_true', help='--prompts 와 함께: 판단형 패스에 앵커를 싣지 않는다')
+    ap.add_argument('--fr-scores', metavar='FILE', help='fr_import.py 가 만든 fr-scores.json 을 응답에 붙여 총점·레벨을 낸다')
     a = ap.parse_args()
+    fr_scores = load_fr_scores(a.fr_scores) if a.fr_scores else None
 
     key = load_key()
     rows, responses, out = [], [], []
@@ -404,6 +519,8 @@ def main():
         r = json.loads(pathlib.Path(f).read_text(encoding='utf-8'))
         if r.get('schema') != 'axst-response-1':
             print(f"건너뜀 (schema 불일치): {f}", file=sys.stderr); continue
+        if fr_scores is not None:
+            attach_fr_scores(r, fr_scores)
         responses.append(r)
         pts, correct, picks, missing = score_mc(r, key)
         fl = flags(correct, key, r)
@@ -414,7 +531,7 @@ def main():
         out.append(cohort(rows, key))
     print("\n\n---\n\n".join(out))
     if a.prompts:
-        build_prompts(responses, a.prompts)
+        build_prompts(responses, a.prompts, calibration=a.calibration)
 
 if __name__ == '__main__':
     main()

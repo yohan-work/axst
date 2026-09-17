@@ -140,7 +140,17 @@ L4는 교육 수요가 아니라 **공급**이다. 처방은 [06-prescription.md
 
 ## 채점 절차
 
-1~3단계는 `python3 scripts/score.py <응답.json>` 이 한 번에 수행한다. 4단계 패킷도 `--prompts` 로 생성한다.
+1~3단계는 `python3 scripts/score.py <응답.json>` 이 한 번에 수행한다. 4~6단계는 다음 도구로 한다 — 응답 JSON을 손으로 고치지 않는다.
+
+| 단계 | 명령 |
+|---|---|
+| 4 패킷 생성 | `score.py <응답들> --prompts pilot/work/` (캘리브레이션 회차는 `--calibration` 추가) |
+| 4 LLM 채점 | `pass-*.md` 를 패스마다 **새 대화**에 붙여넣고 답변 전체를 `pilot/work/out-<패스>.txt` 로 저장 |
+| 4 가져오기 | `fr_import.py pilot/work/` — 줄 누락·범위·상한 계산이 어긋나면 파일을 쓰지 않는다 |
+| 5 인간 표본 | `fr_import.py pilot/work/ --template h.csv` → 표본 줄만 채움 → `--csv h.csv` → `--compare pilot/work/fr-scores.human.json` |
+| 6 총점·레벨 | `score.py <응답들> --fr-scores pilot/work/fr-scores.final.json` |
+
+패킷에는 식별 코드 대신 불투명 번호(`R01`…)만 실린다. 번호 ↔ 응답 대응표(`idmap.json`)는 작업 폴더에만 남는다.
 
 1. **객관식 자동 채점** — 정답은 `items/`에서 읽는다(SSOT). 최선–최악 문항은 부분 점수 적용
 2. **축별 정답 수 집계** → 3단 플래그. 최선–최악은 **둘 다 맞아야** 정답 1개로 센다
