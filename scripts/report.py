@@ -328,6 +328,12 @@ def individual_html(ev, key, tpl, rx, round_label='파일럿'):
     else:
         B.append('<p class="muted">이번 결과에서 따로 권할 행동이 없습니다.</p>')
     B.append('</section>')
+    if round_label == '파일럿':
+        # 관문 B 의 리포트 납득도(docs/07). 응시 시점에는 리포트를 보지 못했으므로 여기서 묻는다
+        B.append('<section><h2>담당자에게 한 가지만 회신해 주십시오</h2>'
+                 '<p>이 리포트가 <strong>본인의 실제 AI 활용 모습과 맞다고 느끼십니까?</strong> '
+                 '1(전혀 아니다) ~ 5(매우 그렇다) 중 숫자 하나와 응답 코드를 담당자에게 보내 주십시오. '
+                 '진단을 계속 쓸지 판단하는 데만 씁니다.</p></section>')
     B.append('<p class="foot">이 리포트는 본인과 본인이 지정한 상급자에게만 전달합니다. '
              '축 신호는 어떤 경우에도 인사·승진 자료로 쓰지 않습니다.</p>')
     return page(f"AX Literacy 진단 개인 리포트 {r.get('rid') or ''}".strip(), "\n".join(B))

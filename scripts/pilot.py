@@ -8,11 +8,13 @@
     python3 scripts/pilot.py sample                       # 인간 재채점 표본(20%) 뽑기 + 빈 CSV
     python3 scripts/pilot.py compare pilot/work/human.csv # 인간 채점 가져와 대조·병합
     python3 scripts/pilot.py reports --org "○○본부"       # 개인·조직 리포트 → pilot/reports/
+    python3 scripts/pilot.py gate                         # 관문 B — 본 시행으로 갈지 기준별 판정 (docs/07)
     python3 scripts/pilot.py purge                        # 삭제일: 지울 파일 목록 (--yes 로 실제 삭제)
 
 기본 폴더는 pilot/responses/(응답), pilot/work/(채점 작업), pilot/reports/(리포트)이고 모두 git 제외다.
 """
-import sys, json, math, random, shutil, pathlib, argparse
+import sys, csv, copy, json, math, random, shutil, pathlib, argparse
+from collections import Counter
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import score, fr_import, report  # noqa: E402
@@ -160,6 +162,12 @@ def cmd_reports(a):
     if rc == 0:
         if frs:
             print_persona_penalties(rs, score.load_fr_scores(frs))
+        fit = pathlib.Path(a.work) / 'fit.csv'
+        if a.round == '파일럿' and not fit.exists():
+            with fit.open('w', encoding='utf-8-sig', newline='') as f:
+                w = csv.writer(f); w.writerow(['응답코드', '납득'])
+                for r in sorted(rs, key=response_key): w.writerow([response_key(r), ''])
+            print(f"\n리포트 납득도 회신 칸: {rel(fit)} — 회신(1~5)이 오면 채운다. pilot.py gate 가 읽는다.")
         print("\n배포 전: 개인 리포트는 본인에게만 보낸다. 조직 리포트의 '출구 전략 체크리스트' 칸을 채운다.")
     return rc
 
@@ -189,6 +197,169 @@ def print_persona_penalties(rs, scores):
         if pk in rows:
             n, f5, f2 = rows[pk]
             print(f"  {pk:<6} {n:>4} {f5:>4} {f2:>4}")
+
+
+# ---------- 관문 B (docs/07-validity-plan.md "관문 B") ----------
+GATE_MIN_N = 10
+TIME_LIMIT_SEC = 35 * 60
+PASS, FAIL, HOLD = '통과', '미달', '판정 불가'
+
+
+def item_stats(evs, key):
+    """문항별 p(최선 정답률)·p_worst·d. d 는 객관식 득점 상위 27% − 하위 27% 의 정답률(최소 1명씩)."""
+    n = len(evs)
+    g = max(1, math.ceil(n * 0.27))
+    ranked = sorted(evs, key=lambda e: e['pts'])
+    low, high = ranked[:g], ranked[-g:]
+    out = {}
+    for seq, k in key.items():
+        best = lambda e: e['picks'][seq]['best'] == k['answer']
+        st = {'p': sum(map(best, evs)) / n,
+              'd': sum(map(best, high)) / g - sum(map(best, low)) / g}
+        if k['worst']:
+            st['p_worst'] = sum(1 for e in evs if e['picks'][seq]['worst'] == k['worst']) / n
+        out[seq] = st
+    return out
+
+
+def broken_items(stats):
+    """관문에서 세는 '명백히 망가진' 문항. d < 0.20 은 n=10~15 에서 흔들리므로 세지 않고 참고로만 낸다."""
+    bad = {}
+    for seq, st in stats.items():
+        why = []
+        for name in ('p', 'p_worst'):
+            if name in st and st[name] < 0.25: why.append(f"{name} {st[name]:.0%} < 25%")
+            if name in st and st[name] > 0.90: why.append(f"{name} {st[name]:.0%} > 90%")
+        if st['d'] < 0: why.append(f"d {st['d']:+.0%} < 0")
+        if why: bad[seq] = why
+    return bad
+
+
+def load_fit(path):
+    """리포트 납득도 회신. 응답코드,납득(1~5). 빈 칸은 미회신."""
+    p = pathlib.Path(path)
+    if not p.exists():
+        return None
+    out = {}
+    with p.open(encoding='utf-8-sig', newline='') as f:
+        for i, row in enumerate(csv.DictReader(f), 2):
+            v = (row.get('납득') or '').strip()
+            if not v: continue
+            if v not in {'1', '2', '3', '4', '5'}:
+                raise ValueError(f"{p.name} {i}행: 납득={v!r} — 1~5 정수여야 한다")
+            out[(row.get('응답코드') or '').strip()] = int(v)
+    return out
+
+
+def gate(rs, key, llm=None, human=None, fit=None, final=None):
+    """기준별 (이름, 값 문자열, 판정, 근거). docs/07 '관문 B' 표와 1:1.
+    레벨은 final(인간 대조 병합본)이 있으면 그것으로, 없으면 llm 점수로 낸다. rs 는 고치지 않는다."""
+    rs = copy.deepcopy(rs)
+    n = len(rs)
+    rows = []
+    if n < GATE_MIN_N:
+        return [('인원', f"{n}명", HOLD, f"파일럿 최소 {GATE_MIN_N}명 미만 — 문항 통계를 낼 수 없다")]
+    # 1 소요 시간
+    tots = [(r.get('durations_sec') or {}).get('total') for r in rs]
+    tots = [t for t in tots if isinstance(t, (int, float)) and t > 0]
+    if len(tots) < n / 2:
+        rows.append(('소요 시간', f"기록 {len(tots)}/{n}", HOLD, "온라인 응시본 기록이 절반 미만 — 지필이면 수기 기록으로 판단"))
+    else:
+        share = sum(t <= TIME_LIMIT_SEC for t in tots) / len(tots)
+        rows.append(('소요 시간', f"35분 이내 {share:.0%} ({len(tots)}명 기록)", PASS if share >= 0.80 else FAIL, "기준 ≥ 80%"))
+    # 2 주관식 미작성률
+    blank = sum(1 for r in rs for fid, _ in FR_ITEMS if not (((r.get('free_response') or {}).get(fid) or {}).get('text') or '').strip())
+    rate = blank / (2 * n)
+    rows.append(('주관식 미작성률', f"{rate:.0%} ({blank}/{2 * n})", PASS if rate < 0.20 else FAIL, "기준 < 20%"))
+    # 3 망가진 문항
+    evs = [report.evaluate(r, key) for r in rs]
+    bad = broken_items(item_stats(evs, key))
+    rows.append(('보류 후보 문항', f"{len(bad)}개" + (f" ({', '.join(f'{s}번' for s in sorted(bad))})" if bad else ''),
+                 PASS if len(bad) <= 4 else FAIL, "기준 ≤ 4 (예비 4문항으로 교체 가능). p<25%·p>90%·d<0"))
+    # 4 사람–LLM 불일치
+    if not llm or not human:
+        rows.append(('사람–LLM 불일치', '—', HOLD, "fr-scores.json 과 fr-scores.human.json 이 필요하다 (pilot.py compare)"))
+    else:
+        _, diffs = fr_import.compare(llm, human)
+        sampled = sum(len(v) for v in human.values())
+        share = len(diffs) / sampled if sampled else 0
+        rows.append(('사람–LLM 불일치', f"{share:.0%} ({len(diffs)}/{sampled}답안)", PASS if sampled and share < 0.20 else FAIL,
+                     "기준 < 20% — 어느 차원이든 2점 이상 또는 감점 판정 차이"))
+    # 5 결과 분산
+    if final or llm:
+        for r in rs: score.attach_fr_scores(r, final or llm)
+        evs = [report.evaluate(r, key) for r in rs]
+    lv = Counter(e['level'][0] for e in evs if e['level'])
+    scored = sum(lv.values())
+    if scored < n / 2:
+        rows.append(('결과 분산', f"총점 산출 {scored}/{n}", HOLD, "주관식 점수를 가져온 뒤 판단 (pilot.py import)"))
+    else:
+        rows.append(('결과 분산', ' · '.join(f"{k} {v}명" for k, v in sorted(lv.items())), PASS if len(lv) >= 2 else FAIL,
+                     "기준 레벨 2종 이상 — 한 레벨에 몰리면 반을 나눌 근거가 없다"))
+    # 6 리포트 납득도
+    if fit is None:
+        rows.append(('리포트 납득도', '—', HOLD, "리포트 전달 뒤 회신을 fit.csv 에 적는다"))
+    else:
+        got = [v for k, v in fit.items() if k in {response_key(r) for r in rs}]
+        if len(got) < n / 2:
+            rows.append(('리포트 납득도', f"회신 {len(got)}/{n}", HOLD, "회신이 절반 미만"))
+        else:
+            share = sum(v >= 4 for v in got) / len(got)
+            rows.append(('리포트 납득도', f"4점 이상 {share:.0%} ({len(got)}명 회신)", PASS if share > 0.50 else FAIL, "기준 > 50%"))
+    return rows
+
+
+def survey_summary(rs):
+    """참고 — 관문 판정에 쓰지 않는다. 응시 후 설문(점수 미반영)."""
+    sv = [r.get('survey') or {} for r in rs]
+    amb = Counter(q for s in sv for q in (s.get('ambiguous') or []))
+    real = [s['realism'] for s in sv if isinstance(s.get('realism'), int)]
+    fitc = Counter(s['persona_fit'] for s in sv if s.get('persona_fit'))
+    roles = sorted({(s.get('role') or '').strip() for s in sv} - {''})
+    return {'answered': sum(1 for s in sv if any(s.get(k) for k in ('ambiguous', 'realism', 'persona_fit'))),
+            'ambiguous': amb.most_common(), 'realism': real, 'persona_fit': dict(fitc), 'roles': roles}
+
+
+def cmd_gate(a):
+    rs, notes, bad = load_responses(a.responses)
+    for m in notes + bad: print(f"  참고: {m}")
+    work = pathlib.Path(a.work)
+    load = lambda p: score.load_fr_scores(p) if p.exists() else None
+    llm, human, final = load(work / 'fr-scores.json'), load(work / 'fr-scores.human.json'), load(work / 'fr-scores.final.json')
+    try:
+        fit = load_fit(work / 'fit.csv')
+    except ValueError as e:
+        print(e, file=sys.stderr); return 1
+    rows = gate(rs, score.load_key(), llm, human, fit, final)
+    print(f"관문 B — 본 시행으로 갈지 (응답 {len(rs)}명, 기준: docs/07-validity-plan.md)\n")
+    w = max(len(r[0]) for r in rows)
+    for name, val, verdict, why in rows:
+        print(f"  [{verdict}] {name:<{w}}  {val}  — {why}")
+    fails = [r[0] for r in rows if r[2] == FAIL]
+    holds = [r[0] for r in rows if r[2] == HOLD]
+    print()
+    if fails:
+        print(f"결론: 관문 B 미달 — {', '.join(fails)}. 본 시행 제안 전에 원인을 기록하고 조치한다.")
+    elif holds:
+        print(f"결론: 판정 보류 — {', '.join(holds)}. 채운 뒤 다시 실행한다.")
+    else:
+        print("결론: 관문 B 통과 — 본 시행 제안으로 갈 수 있다.")
+    if len(rs) >= GATE_MIN_N:
+        evs = [report.evaluate(r, score.load_key()) for r in rs]
+        st = item_stats(evs, score.load_key())
+        weak = sorted(s for s, v in st.items() if 0 <= v['d'] < 0.20)
+        sv = survey_summary(rs)
+        print("\n참고 (판정에 쓰지 않음)")
+        print(f"  d 0~20% 문항: {', '.join(f'{s}번' for s in weak) or '없음'} — n이 작아 흔들린다. 설문 지목과 겹치는지 본다")
+        print(f"  응시 후 설문 응답 {sv['answered']}/{len(rs)}명")
+        if sv['ambiguous']:
+            print("  헷갈린 문항 지목: " + ', '.join(f"{q}번 {c}명" for q, c in sv['ambiguous'][:6]))
+        if sv['realism']:
+            print(f"  업무 현실성 평균 {sum(sv['realism']) / len(sv['realism']):.1f} / 5 ({len(sv['realism'])}명)")
+        if sv['persona_fit']:
+            print("  22번 페르소나 적합: " + ', '.join(f"{k} {v}명" for k, v in sv['persona_fit'].items())
+                  + (f" — 맞지 않았던 직무: {', '.join(sv['roles'])}" if sv['roles'] else ''))
+    return 0 if not fails and not holds else 1
 
 
 def cmd_purge(a):
@@ -226,12 +397,13 @@ def main(argv=None):
     p.add_argument('--org', default='')
     p.add_argument('--round', default='파일럿', choices=['파일럿', '진단'])
     p.add_argument('--allow-unscored', action='store_true', help='주관식 점수 없이도 만든다')
+    sub.add_parser('gate', help='관문 B — 본 시행으로 갈지 기준별 판정')
     p = sub.add_parser('purge', help='응답·작업 파일·리포트 삭제')
     p.add_argument('--yes', action='store_true')
     a = ap.parse_args(argv)
     try:
         return {'status': cmd_status, 'packets': cmd_packets, 'import': cmd_import, 'sample': cmd_sample,
-                'compare': cmd_compare, 'reports': cmd_reports, 'purge': cmd_purge}[a.cmd](a)
+                'compare': cmd_compare, 'reports': cmd_reports, 'gate': cmd_gate, 'purge': cmd_purge}[a.cmd](a)
     except fr_import.ImportError_ as e:
         print("\n".join(e.problems), file=sys.stderr); return 1
 

@@ -76,6 +76,11 @@ class PilotFlow(unittest.TestCase):
         rc, out = self.run_cmd('reports', '--org', '테스트')
         self.assertEqual(rc, 0, out)
         self.assertIn('운영자 전용 — 22번 페르소나별 감점', out)
+        self.assertTrue((self.work / 'fit.csv').exists())                 # 납득도 회신 칸
+        rc, out = self.run_cmd('gate')
+        self.assertIn('관문 B', out)
+        self.assertIn('[판정 불가] 리포트 납득도', out)                     # 회신 전이라 보류
+        self.assertEqual(rc, 1)
         self.assertEqual(len(list(self.out.glob('report-*.html'))), 13)
         # purge 는 --yes 없이는 지우지 않는다
         self.run_cmd('purge')
@@ -95,6 +100,93 @@ class PilotFlow(unittest.TestCase):
         rc, out = self.run_cmd('reports')
         self.assertEqual(rc, 1)
         self.assertIn('import', out)
+
+
+class Gate(unittest.TestCase):
+    """docs/07 관문 B. 기준마다 경계값 양쪽을 본다."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.key = score.load_key()
+        cls.base = make_samples.synth(cls.key)          # 12명, fr_scores 포함
+
+    def rows(self, rs=None, **kw):
+        return {name: (val, verdict) for name, val, verdict, _ in pilot.gate(rs or self.base, self.key, **kw)}
+
+    def with_time(self, over):
+        rs = copy.deepcopy(self.base)
+        for i, r in enumerate(rs):
+            r['durations_sec'] = {'total': 40 * 60 if i < over else 30 * 60}
+        return rs
+
+    def test_small_n_holds(self):
+        rows = pilot.gate(self.base[:9], self.key)
+        self.assertEqual([(r[0], r[2]) for r in rows], [('인원', pilot.HOLD)])
+
+    def test_time_boundary(self):
+        self.assertEqual(self.rows(self.with_time(2))['소요 시간'][1], pilot.PASS)    # 10/12 = 83%
+        self.assertEqual(self.rows(self.with_time(3))['소요 시간'][1], pilot.FAIL)    # 9/12 = 75%
+        self.assertEqual(self.rows()['소요 시간'][1], pilot.HOLD)                      # 기록 없음
+
+    def test_blank_fr_boundary(self):
+        rs = copy.deepcopy(self.base)
+        for r in rs[:4]: r['free_response']['FR-01']['text'] = ''                  # 4/24 = 17%
+        self.assertEqual(self.rows(rs)['주관식 미작성률'][1], pilot.PASS)
+        rs[4]['free_response']['FR-01']['text'] = '  '                              # 5/24 = 21%
+        self.assertEqual(self.rows(rs)['주관식 미작성률'][1], pilot.FAIL)
+
+    def test_broken_items_rules(self):
+        st = {1: {'p': 0.24, 'd': 0.5}, 2: {'p': 0.25, 'd': 0.5}, 3: {'p': 0.91, 'd': 0.5},
+              4: {'p': 0.5, 'd': -0.01}, 5: {'p': 0.5, 'd': 0.0}, 6: {'p': 0.5, 'd': 0.1, 'p_worst': 0.2}}
+        self.assertEqual(sorted(pilot.broken_items(st)), [1, 3, 4, 6])             # d 0~20% 는 세지 않는다
+
+    def test_item_stats_top_bottom(self):
+        evs = [{'pts': i, 'picks': {s: {'best': (k['answer'] if i >= 6 else 0), 'worst': k['worst']}
+                                   for s, k in self.key.items()}} for i in range(12)]
+        st = pilot.item_stats(evs, self.key)
+        self.assertEqual((st[1]['p'], st[1]['d']), (0.5, 1.0))
+
+    def test_disagreement_and_spread(self):
+        llm = {r['rid']: r['fr_scores'] for r in self.base}
+        human = {k: copy.deepcopy(v) for k, v in list(llm.items())[:5]}
+        self.assertEqual(self.rows(llm=llm, human=human)['사람–LLM 불일치'][1], pilot.PASS)   # 0/10
+        human[next(iter(human))]['FR-01']['D1'] += 2                                           # 1/10 = 10%
+        self.assertEqual(self.rows(llm=llm, human=human)['사람–LLM 불일치'][1], pilot.PASS)
+        for k in list(human)[1:3]: human[k]['FR-02']['D2'] -= 2                                # 3/10 = 30%
+        self.assertEqual(self.rows(llm=llm, human=human)['사람–LLM 불일치'][1], pilot.FAIL)
+        self.assertEqual(self.rows(llm=llm)['결과 분산'][1], pilot.PASS)
+
+    def test_fit(self):
+        codes = [r['rid'] for r in self.base]
+        self.assertEqual(self.rows(fit={c: 4 for c in codes[:5]})['리포트 납득도'][1], pilot.HOLD)       # 회신 5/12
+        self.assertEqual(self.rows(fit={c: (4 if i < 3 else 2) for i, c in enumerate(codes[:6])})['리포트 납득도'][1], pilot.FAIL)  # 50%
+        self.assertEqual(self.rows(fit={c: (5 if i < 4 else 3) for i, c in enumerate(codes[:7])})['리포트 납득도'][1], pilot.PASS)  # 57%
+        bad = pathlib.Path(tempfile.mkdtemp()) / 'fit.csv'
+        bad.write_text('응답코드,납득\nSMPL01,6\n', encoding='utf-8-sig')
+        with self.assertRaises(ValueError):
+            pilot.load_fit(bad)
+
+    def test_gate_does_not_mutate(self):
+        llm = {r['rid']: r['fr_scores'] for r in self.base}
+        rs = copy.deepcopy(self.base)
+        for r in rs: r.pop('fr_scores')                  # 응답 파일에는 점수가 없다
+        before = json.dumps(rs, sort_keys=True)
+        pilot.gate(rs, self.key, llm=llm)
+        self.assertEqual(json.dumps(rs, sort_keys=True), before)
+
+    def test_broken_count_boundary(self):
+        from unittest import mock
+        for n, want in ((4, pilot.PASS), (5, pilot.FAIL)):
+            with self.subTest(n=n), mock.patch.object(pilot, 'broken_items', lambda st, n=n: {i: ['x'] for i in range(1, n + 1)}):
+                self.assertEqual(self.rows()['보류 후보 문항'][1], want)
+
+    def test_survey_summary(self):
+        rs = copy.deepcopy(self.base)
+        rs[0]['survey'] = {'ambiguous': [11, 18], 'realism': 4, 'persona_fit': '없었다', 'role': '웹 퍼블리싱'}
+        rs[1]['survey'] = {'ambiguous': [18], 'realism': 2, 'persona_fit': '있었다', 'role': ''}
+        sv = pilot.survey_summary(rs)
+        self.assertEqual(sv['ambiguous'][0], (18, 2))
+        self.assertEqual((sv['answered'], sv['realism'], sv['roles']), (2, [4, 2], ['웹 퍼블리싱']))
 
 
 if __name__ == '__main__':
