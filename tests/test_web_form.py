@@ -47,6 +47,15 @@ class WebForm(unittest.TestCase):
         for key in ('schema:"axst-response-1"', 'rid:state.rid', 'ai_prompt:v.ai_prompt', 'total:r.sr+r.mc+r.fr'):
             self.assertIn(key, self.html)
 
+    def test_survey_wired(self):
+        # 응시 후 설문: 제출 뒤·파일 저장 전. 응답 파일에 담기고, 이어하기에서 복원되고, 점수와 무관하다
+        self.assertIn('survey:Object.assign(newState().survey, state.survey)', self.html)
+        self.assertIn('renderSurvey();', self.html)
+        self.assertIn('const sv=Object.assign(newState().survey, state.survey);', self.html)   # applyState 복원
+        done = self.html[self.html.index('<section id="s-done"'):]
+        self.assertLess(done.index('class="survey"'), done.index('id="dl"'))              # 저장 버튼보다 위
+        self.assertIn('점수와 무관', done)
+
     def test_worst_seqs_from_items(self):
         seqs = '·'.join(str(m['seq']) for m in self.data['mc'] if m['worst'])
         self.assertIn(seqs + '번은', self.html)
