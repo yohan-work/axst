@@ -77,9 +77,10 @@ python3 scripts/build_web_form.py      # items/ → forms/form-A.web.html (온�
 모은 응답은 이렇게 채점합니다.
 
 ```bash
-python3 scripts/score.py responses/*.json                 # 개인 채점표
-python3 scripts/score.py responses/*.json --prompts out/  # 주관식 LLM 채점 패킷 생성
-python3 scripts/score.py responses/*.json --cohort        # 조직 집계 (n≥10)
+python3 scripts/score.py responses/*.json --prompts work/          # 주관식 LLM 채점 패킷 생성
+python3 scripts/fr_import.py work/                                  # LLM 답변(out-*.txt) 가져오기·검증
+python3 scripts/score.py responses/*.json --fr-scores work/fr-scores.json   # 채점표·총점·레벨
+python3 scripts/score.py responses/*.json --cohort                  # 조직 집계 (n≥10)
 ```
 
 > [!CAUTION]

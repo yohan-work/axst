@@ -1,6 +1,9 @@
 # 응시 응답은 개인정보다. 레포에 커밋하면 무기명 보장이 거짓이 된다.
 pilot/responses/*
 !pilot/responses/.gitkeep
+# 채점 작업 폴더(답안 원문이 든 패킷·LLM 답변)와 리포트
+pilot/work/
+pilot/reports/
 
 .DS_Store
 
