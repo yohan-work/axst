@@ -309,6 +309,10 @@ def build_prompts(responses, outdir):
                 body.append(f"**페르소나 항목명 판정 (기계, 채점자가 바꾸지 않는다)**: {verdict}\n")
             body.append("\n**답안 전문:**\n")
             body.append("```\n" + v['text'] + "\n```\n")
+            if (v.get('ai_prompt') or '').strip():
+                # 응시본의 '사용한 프롬프트' 칸. D2는 이 첨부 프롬프트 안의 요소도 인정한다(rubrics/fr-01.md).
+                body.append("\n**첨부 프롬프트:**\n")
+                body.append("```\n" + v['ai_prompt'] + "\n```\n")
             body.append("---\n")
     answers_block = "\n".join(body)
     if not answers_block:

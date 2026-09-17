@@ -185,6 +185,19 @@ class Prompts(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.build(persona='XYZ')
 
+    def test_attached_prompt_reaches_packet(self):
+        # 응시본의 '사용한 프롬프트' 칸은 답안과 따로 저장된다. D2 근거라서 패킷에 실려야 한다
+        import tempfile
+        d = tempfile.mkdtemp()
+        r = {'respondent': 't', 'free_response': {
+            'FR-01': {'text': '업무 설명', 'ai_prompt': '수신자는 팀장, 표 3열로 정리해라'},
+            'FR-02': {'persona': 'FIN', 'text': '정리해라.', 'ai_prompt': ''}}}
+        score.build_prompts([r], d)
+        p = (pathlib.Path(d) / 'pass-D2.md').read_text(encoding='utf-8')
+        self.assertIn('**첨부 프롬프트:**', p)
+        self.assertIn('수신자는 팀장, 표 3열로 정리해라', p)
+        self.assertEqual(p.count('**첨부 프롬프트:**'), 1)   # 빈 칸은 싣지 않는다
+
 
 if __name__ == '__main__':
     unittest.main()
