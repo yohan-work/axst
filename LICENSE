@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This MIT License applies to the source code in `scripts/` and `tests/`, and to
-the CI configuration in `.github/`.
-
-All other content in this repository — including but not limited to `items/`,
-`rubrics/`, `personas/`, `forms/`, `selfreport/`, `pilot/`, `docs/`, and the
-README files — is licensed under the Creative Commons Attribution 4.0
-International License (CC BY 4.0). See `LICENSE-CONTENT`.
