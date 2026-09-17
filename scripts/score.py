@@ -243,11 +243,21 @@ def load_personas():
         out[key.group(1)] = {'text': t.split('## 페르소나', 1)[1].strip(), 'anchor_items': names}
     return out
 
+# 항목명 바로 뒤에 붙어도 되는 조사·접미사. 이것 말고 한글이 이어지면 다른 낱말의 일부다
+# ('작업조건'의 '작업조', '집행일정'의 '집행일').
+_ANCHOR_TAIL = '별|은|는|이|가|을|를|의|과|와|로|으로|에|에서|만|도|까지|마다|부터|당|자'
+
 def persona_anchor_hits(answer, anchor_items):
-    """FR-02 페르소나 상한 판정(rubrics/fr-02.md 공통 원칙). 띄어쓰기만 무시하고 항목명 등장 여부를 본다.
-    빈 목록이면 상한 적용 — 네 차원 전부 상한 3점."""
-    flat = re.sub(r'\s+', '', answer or '')
-    return [n for n in anchor_items if re.sub(r'\s+', '', n) in flat]
+    """FR-02 페르소나 상한 판정(rubrics/fr-02.md 공통 원칙). 빈 목록이면 상한 적용 — 네 차원 전부 상한 3점.
+    항목명 글자 사이의 띄어쓰기만 무시한다. 답안 전체의 공백을 지우면 낱말 경계를 넘어
+    '작업 조건'이 `작업조`로 잡힌다. 그래서 앞은 한글이 아니어야 하고, 뒤는 한글이 아니거나 조사여야 한다."""
+    text = answer or ''
+    hits = []
+    for n in anchor_items:
+        body = r'\s*'.join(map(re.escape, re.sub(r'\s+', '', n)))
+        if re.search(rf'(?<![가-힣]){body}(?![가-힣])|(?<![가-힣]){body}(?:{_ANCHOR_TAIL})', text):
+            hits.append(n)
+    return hits
 
 def _scrub(s):
     return "\n".join(l for l in s.split("\n")
@@ -281,14 +291,21 @@ def build_prompts(responses, outdir):
             body.append(f"### 응답 {rid} · {seq}번 ({fid})")
             if fid == 'FR-02':
                 pk = v.get('persona')
-                if pk not in personas:
+                if not pk:
+                    # 온라인 응시본은 페르소나 없이도 제출된다(경고만 띄운다). 한 명 때문에 묶음 전체를 멈추지 않는다.
+                    body.append("\n**선택한 페르소나: 미선택**\n")
+                    verdict = ("**판정 보류 — 페르소나 미선택.** 답안 내용으로 페르소나를 추정하지 말고 "
+                               "네 차원 모두 점수 칸에 `보류`라고만 쓴다")
+                    print(f"경고: 응답 {rid} 22번 페르소나 미선택 — 패킷에 판정 보류로 표시", file=sys.stderr)
+                elif pk not in personas:
                     raise ValueError(f"응답 {rid} FR-02: 페르소나 {pk!r} 를 personas/ 에서 찾지 못함 — "
-                                     "상한 판정을 할 수 없다")
-                hits = persona_anchor_hits(v['text'], personas[pk]['anchor_items'])
-                body.append(f"\n**선택한 페르소나: {pk}**\n")
-                body.append("```\n" + personas[pk]['text'] + "\n```\n")
-                verdict = ("상한 미적용 — 지목: " + ", ".join(f"`{h}`" for h in hits)) if hits else \
-                          "**상한 적용 — 페르소나 항목명 지목 없음. 네 차원 전부 상한 3점**"
+                                     "응답 파일이나 personas/ 가 어긋났다")
+                else:
+                    hits = persona_anchor_hits(v['text'], personas[pk]['anchor_items'])
+                    body.append(f"\n**선택한 페르소나: {pk}**\n")
+                    body.append("```\n" + personas[pk]['text'] + "\n```\n")
+                    verdict = ("상한 미적용 — 지목: " + ", ".join(f"`{h}`" for h in hits)) if hits else \
+                              "**상한 적용 — 페르소나 항목명 지목 없음. 네 차원 전부 상한 3점**"
                 body.append(f"**페르소나 항목명 판정 (기계, 채점자가 바꾸지 않는다)**: {verdict}\n")
             body.append("\n**답안 전문:**\n")
             body.append("```\n" + v['text'] + "\n```\n")
