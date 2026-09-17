@@ -81,6 +81,10 @@ class PilotFlow(unittest.TestCase):
         self.assertIn('관문 B', out)
         self.assertIn('[판정 불가] 리포트 납득도', out)                     # 회신 전이라 보류
         self.assertEqual(rc, 1)
+        with (self.work / 'fit.csv').open('a', encoding='utf-8') as f:
+            f.write('ZZZZZZ,5\n')                                                   # 오타 코드
+        _, out = self.run_cmd('gate')
+        self.assertIn('어느 응답과도 맞지 않아 빠졌다 — ZZZZZZ', out)
         self.assertEqual(len(list(self.out.glob('report-*.html'))), 13)
         # purge 는 --yes 없이는 지우지 않는다
         self.run_cmd('purge')
@@ -191,6 +195,9 @@ class Gate(unittest.TestCase):
         self.assertEqual(self.rows(fit={c: 4 for c in codes[:5]})['리포트 납득도'][1], pilot.HOLD)       # 회신 5/12
         self.assertEqual(self.rows(fit={c: (4 if i < 3 else 2) for i, c in enumerate(codes[:6])})['리포트 납득도'][1], pilot.FAIL)  # 50%
         self.assertEqual(self.rows(fit={c: (5 if i < 4 else 3) for i, c in enumerate(codes[:7])})['리포트 납득도'][1], pilot.PASS)  # 57%
+        f = pathlib.Path(tempfile.mkdtemp()) / 'fit.csv'                                       # 메일 회신을 옮겨 적은 소문자·공백
+        f.write_text('응답코드,납득\n' + ''.join(f' {c.lower()} ,{5 if i < 4 else 3}\n' for i, c in enumerate(codes[:7])), encoding='utf-8-sig')
+        self.assertEqual(self.rows(fit=pilot.load_fit(f))['리포트 납득도'][1], pilot.PASS)
         bad = pathlib.Path(tempfile.mkdtemp()) / 'fit.csv'
         bad.write_text('응답코드,납득\nSMPL01,6\n', encoding='utf-8-sig')
         with self.assertRaises(ValueError):
@@ -240,9 +247,11 @@ class Gate(unittest.TestCase):
         rs = copy.deepcopy(self.base)
         rs[0]['survey'] = {'ambiguous': [11, 18], 'realism': 4, 'persona_fit': '없었다', 'role': '웹 퍼블리싱'}
         rs[1]['survey'] = {'ambiguous': [18], 'realism': 2, 'persona_fit': '있었다', 'role': ''}
+        rs[2]['survey'] = {'ambiguous': [], 'realism': None, 'persona_fit': None, 'why': '', 'role': ' 퍼블리셔 '}   # 직무만 씀
+        rs[3]['survey'] = {'ambiguous': [], 'realism': None, 'persona_fit': None, 'why': '  ', 'role': ''}          # 공백뿐
         sv = pilot.survey_summary(rs)
         self.assertEqual(sv['ambiguous'][0], (18, 2))
-        self.assertEqual((sv['answered'], sv['realism'], sv['roles']), (2, [4, 2], ['웹 퍼블리싱']))
+        self.assertEqual((sv['answered'], sv['realism'], sv['roles']), (3, [4, 2], ['웹 퍼블리싱', '퍼블리셔']))
 
 
 if __name__ == '__main__':

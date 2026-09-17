@@ -294,7 +294,7 @@ def load_fit(path):
         if not v: continue
         if v not in {'1', '2', '3', '4', '5'}:
             raise ValueError(f"{p.name} {i}행: 납득={v!r} — 1~5 정수여야 한다")
-        out[(row.get('응답코드') or '').strip()] = int(v)
+        out[(row.get('응답코드') or '').strip().upper()] = int(v)   # 메일 회신을 옮겨 적으며 생기는 대소문자·공백 차이
     return out
 
 
@@ -353,7 +353,8 @@ def gate(rs, key, llm=None, human=None, fit=None, final=None):
     if fit is None:
         rows.append(('리포트 납득도', '—', HOLD, "리포트 전달 뒤 회신을 fit.csv 에 적는다"))
     else:
-        got = [v for k, v in fit.items() if k in {response_key(r) for r in rs}]
+        codes = {response_key(r).strip().upper() for r in rs}
+        got = [v for k, v in fit.items() if k in codes]
         if len(got) < n / 2:
             rows.append(('리포트 납득도', f"회신 {len(got)}/{n}", HOLD, "회신이 절반 미만"))
         else:
@@ -369,7 +370,10 @@ def survey_summary(rs):
     real = [s['realism'] for s in sv if isinstance(s.get('realism'), int)]
     fitc = Counter(s['persona_fit'] for s in sv if s.get('persona_fit'))
     roles = sorted({(s.get('role') or '').strip() for s in sv} - {''})
-    return {'answered': sum(1 for s in sv if any(s.get(k) for k in ('ambiguous', 'realism', 'persona_fit'))),
+    def touched(s):   # 자유 서술(이유·직무)만 쓴 사람도 응답자다
+        return bool(s.get('ambiguous') or s.get('realism') or s.get('persona_fit')
+                    or (s.get('why') or '').strip() or (s.get('role') or '').strip())
+    return {'answered': sum(map(touched, sv)),
             'ambiguous': amb.most_common(), 'realism': real, 'persona_fit': dict(fitc), 'roles': roles}
 
 
@@ -384,6 +388,10 @@ def cmd_gate(a):
     except ValueError as e:
         print(e, file=sys.stderr); return 1
     rows = gate(rs, score.load_key(), llm, human, fit, final)
+    if fit:
+        unmatched = sorted(set(fit) - {response_key(r).strip().upper() for r in rs})
+        if unmatched:
+            print(f"  주의: fit.csv 의 회신 {len(unmatched)}건이 어느 응답과도 맞지 않아 빠졌다 — {', '.join(unmatched)}. 코드를 확인한다\n")
     print(f"관문 B — 본 시행으로 갈지 (응답 {len(rs)}명, 기준: docs/07-validity-plan.md)\n")
     w = max(len(r[0]) for r in rows)
     for name, val, verdict, why in rows:
