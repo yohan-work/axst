@@ -213,6 +213,18 @@ class Gate(unittest.TestCase):
         self.assertIn('C,', f.read_text(encoding='utf-8-sig'))
         self.assertEqual(pilot.write_fit_template(f, ['A', 'B', 'C'])[1], 0)
 
+    def test_fit_excel_encodings(self):
+        # 한국어 윈도우 엑셀의 기본 CSV 저장은 CP949 다
+        f = pathlib.Path(tempfile.mkdtemp()) / 'fit.csv'
+        f.write_bytes('응답코드,납득\nA,5\n'.encode('cp949'))
+        self.assertEqual(pilot.load_fit(f), {'A': 5})
+        self.assertEqual(pilot.write_fit_template(f, ['A', 'B'])[1], 1)
+        self.assertEqual(pilot.load_fit(f), {'A': 5})                    # 덧붙인 뒤에도 회신 유지
+        f.write_bytes(b'\x80\x81\xff\xfe\x00')
+        with self.assertRaises(ValueError) as cm:
+            pilot.load_fit(f)
+        self.assertIn('CSV UTF-8', str(cm.exception))
+
     def test_survey_summary(self):
         rs = copy.deepcopy(self.base)
         rs[0]['survey'] = {'ambiguous': [11, 18], 'realism': 4, 'persona_fit': '없었다', 'role': '웹 퍼블리싱'}

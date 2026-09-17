@@ -13,7 +13,7 @@
 
 기본 폴더는 pilot/responses/(응답), pilot/work/(채점 작업), pilot/reports/(리포트)이고 모두 git 제외다.
 """
-import sys, csv, copy, json, math, random, shutil, pathlib, argparse
+import io, sys, csv, copy, json, math, random, shutil, pathlib, argparse
 from collections import Counter
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -163,7 +163,10 @@ def cmd_reports(a):
         if frs:
             print_persona_penalties(rs, score.load_fr_scores(frs))
         if a.round == '파일럿':
-            fit, added = write_fit_template(pathlib.Path(a.work) / 'fit.csv', [response_key(r) for r in rs])
+            try:
+                fit, added = write_fit_template(pathlib.Path(a.work) / 'fit.csv', [response_key(r) for r in rs])
+            except ValueError as e:
+                print(f"\n리포트는 만들었지만 회신 칸을 갱신하지 못했다: {e}", file=sys.stderr); return 1
             if added:
                 print(f"\n리포트 납득도 회신 칸 {added}개 추가: {rel(fit)} — 회신(1~5)이 오면 채운다. pilot.py gate 가 읽는다.")
         print("\n배포 전: 개인 리포트는 본인에게만 보낸다. 조직 리포트의 '출구 전략 체크리스트' 칸을 채운다.")
@@ -247,13 +250,25 @@ def broken_items(stats):
     return bad
 
 
+def read_fit_rows(path):
+    """fit.csv 행. 운영자가 한국어 윈도우 엑셀로 저장하면 CP949 가 되므로 UTF-8 다음에 CP949 로 읽는다."""
+    raw = pathlib.Path(path).read_bytes()
+    for enc in ('utf-8-sig', 'cp949'):
+        try:
+            text = raw.decode(enc); break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise ValueError(f"{pathlib.Path(path).name}: 글자 인코딩을 읽지 못했다 — 엑셀에서 'CSV UTF-8' 형식으로 다시 저장한다")
+    return list(csv.DictReader(io.StringIO(text, newline='')))
+
+
 def write_fit_template(path, codes):
     """회신 칸을 만든다. 이미 있으면 적힌 회신은 두고 빠진 응답 코드만 덧붙인다(늦게 낸 응답)."""
     path = pathlib.Path(path)
     rows = []
     if path.exists():
-        with path.open(encoding='utf-8-sig', newline='') as f:
-            rows = [[r.get('응답코드', ''), r.get('납득', '')] for r in csv.DictReader(f)]
+        rows = [[r.get('응답코드', ''), r.get('납득', '')] for r in read_fit_rows(path)]
     have = {c for c, _ in rows}
     new = [[c, ''] for c in sorted(set(codes) - have)]
     if new or not path.exists():
@@ -269,13 +284,12 @@ def load_fit(path):
     if not p.exists():
         return None
     out = {}
-    with p.open(encoding='utf-8-sig', newline='') as f:
-        for i, row in enumerate(csv.DictReader(f), 2):
-            v = (row.get('납득') or '').strip()
-            if not v: continue
-            if v not in {'1', '2', '3', '4', '5'}:
-                raise ValueError(f"{p.name} {i}행: 납득={v!r} — 1~5 정수여야 한다")
-            out[(row.get('응답코드') or '').strip()] = int(v)
+    for i, row in enumerate(read_fit_rows(p), 2):
+        v = (row.get('납득') or '').strip()
+        if not v: continue
+        if v not in {'1', '2', '3', '4', '5'}:
+            raise ValueError(f"{p.name} {i}행: 납득={v!r} — 1~5 정수여야 한다")
+        out[(row.get('응답코드') or '').strip()] = int(v)
     return out
 
 
