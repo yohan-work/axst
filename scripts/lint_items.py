@@ -308,6 +308,8 @@ else:
 # 상대 링크 검증
 for p in list(ROOT.glob('**/*.md')):
     if '.git' in p.parts: continue
+    # pilot/responses/ 는 응시 응답 보관소(.gitignore)다. 뱅크가 아니므로 링크를 검사하지 않는다.
+    if p.relative_to(ROOT).parts[:2] == ('pilot', 'responses'): continue
     for link in re.findall(r'\]\((?!https?://)([^)#]+)', p.read_text()):
         if not (p.parent/link).exists(): fail(f"{p.relative_to(ROOT)}: 깨진 링크 → {link}")
 
