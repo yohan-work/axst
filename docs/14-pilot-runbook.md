@@ -32,7 +32,7 @@
 
 ## 2. 준비 (D-7 ~ D-1)
 
-- [ ] 참여자 10~15명을 **레벨이 섞이게** 고른다. 한 부서만 모으지 않는다
+- [ ] 참여자 10~15명을 **레벨이 섞이게** 고른다. 대상은 **비개발 사무직**(기획·PM·운영·마케팅·영업·CS·인사·재무)이고 개발자는 넣지 않는다. 한 부서만 모으지 않는다
 - [ ] `python3 scripts/lint_items.py` → PASS
 - [ ] 응시본 파일을 사내 공유 위치(메일 첨부·사내 드라이브·인트라넷)에 올리고, **사내 PC에서 네트워크를 끊은 채 한 번 열어** 끝까지 넘겨 본다
 - [ ] [사전 안내자료](08-administration.md#사전-안내자료-응시자에게-미리-배포)를 D-1까지 보낸다. 파일럿이므로 다음 두 문장을 추가한다
@@ -64,7 +64,7 @@ python3 scripts/pilot.py status
 python3 scripts/pilot.py packets              # 캘리브레이션 회차면 --calibration
 # pass-*.md 를 패스마다 새 대화에 → out-D1.txt … out-penalty.txt 로 저장
 python3 scripts/pilot.py import
-python3 scripts/pilot.py sample               # 20% 표본 + pilot/work/human.csv
+python3 scripts/pilot.py sample --rate 1.0    # 파일럿은 사람이 전부 채점 (본 시행은 기본 20%)
 # human.csv 를 루브릭(rubrics/fr-01.md, fr-02.md)만 보고 채운다. LLM 점수는 보지 않는다
 python3 scripts/pilot.py compare pilot/work/human.csv
 ```

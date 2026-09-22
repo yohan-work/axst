@@ -1,0 +1,31 @@
+Brief reasoning for each item follows. The JSON block at the end holds the final answers.
+
+**Campaign report (1–3)**
+- **1:** The budget proposal is a judgment that someone is accountable for, so 김 대리 should make it and use the AI only for the summary and for counterarguments. Option 3 picks an AI option first and adds the rationale afterwards, which runs the reasoning backwards.
+- **2:** The instruction should first state the recipient, purpose, length limit, and a ban on figures not in the data. That constraint also blocks hallucinated numbers.
+- **3:** A per-channel metrics CSV is unlikely to contain churn causes. Yet that "41%" is the direct basis for the budget recommendation, so its source comes first. The denominator check (option 3) comes next.
+
+**Customer inquiry flow (4–6)**
+- **4:** Replies go to customers and can't be recalled. Contract and compensation replies are judgments the team lead is accountable for. That makes option 3, which splits review by risk, the best, and option 1, which sends without any human check, the worst. Option 2 misses anything the AI fails to flag.
+- **5:** Option 4 reduces review steps and targets. Option 3 does remove a step, but it removes the irreversible safety check, so it is inappropriate.
+- **6:** The data contains customer PII and an approved internal tool exists, so directing staff to the internal tool is the right call.
+
+**Weekly report consolidation (7–9)**
+- **7:** Define the output structure and criteria, then have the AI map each report onto it.
+- **8:** Claims that something is absent get checked before claims that something is present. "No issues" for the other three departments is the kind of error that stays hidden unless checked.
+- **9:** Standardizing the submission format removes the reformatting step altogether.
+
+**Monthly close (10–12)**
+- **10:** Delegate detection, which can be reproduced and verified. Keep adopting a cause hypothesis as a human judgment.
+- **11:** The 62% drives the anomaly decision and can be recalculated from the raw data, so it goes first. The industry average of 0.8% is probably hallucinated, but its weight in the decision is smaller.
+- **12:** Numbers from before public disclosure make the permission to use the tool the first thing to check.
+
+**Other items (13–20)**
+- **13:** The grades feed promotion and pay. Having the AI calculate them (option 4) is the worst choice.
+- **17:** Share the verification procedure along with the prompt. Taking over teammates' work (option 3) doesn't spread the method.
+- **18:** Converting hours saved into money when that time hasn't actually been redeployed misleads executives, so I chose it as the worst. Usage frequency (option 2) is also weak, which makes this item ambiguous.
+- **19–20:** Get approval and use only permitted tools. Label AI use according to company policy and check the usage terms.
+
+<<<KEYREVIEW
+{"items": {"1": {"best": 2, "worst": null, "ratings": [2, 5, 2, 1], "confidence": 3, "ambiguous": false, "note": ""}, "2": {"best": 3, "worst": null, "ratings": [2, 2, 5, 3], "confidence": 3, "ambiguous": false, "note": ""}, "3": {"best": 1, "worst": null, "ratings": [5, 3, 4, 1], "confidence": 2, "ambiguous": false, "note": ""}, "4": {"best": 3, "worst": 1, "ratings": [1, 2, 5, 3], "confidence": 2, "ambiguous": false, "note": ""}, "5": {"best": 4, "worst": null, "ratings": [3, 1, 1, 5], "confidence": 2, "ambiguous": false, "note": ""}, "6": {"best": 1, "worst": null, "ratings": [5, 3, 1, 1], "confidence": 2, "ambiguous": false, "note": ""}, "7": {"best": 1, "worst": null, "ratings": [5, 2, 3, 3], "confidence": 3, "ambiguous": false, "note": ""}, "8": {"best": 4, "worst": null, "ratings": [2, 3, 3, 5], "confidence": 2, "ambiguous": false, "note": ""}, "9": {"best": 2, "worst": null, "ratings": [3, 5, 2, 1], "confidence": 3, "ambiguous": false, "note": ""}, "10": {"best": 4, "worst": null, "ratings": [2, 2, 2, 5], "confidence": 3, "ambiguous": false, "note": ""}, "11": {"best": 3, "worst": null, "ratings": [4, 3, 5, 2], "confidence": 2, "ambiguous": true, "note": "업계 평균 0.8%는 자료 외 수치라 환각 가능성이 커 1번을 먼저 볼 여지도 있다."}, "12": {"best": 3, "worst": null, "ratings": [1, 2, 5, 1], "confidence": 3, "ambiguous": false, "note": ""}, "13": {"best": 1, "worst": 4, "ratings": [5, 2, 3, 1], "confidence": 3, "ambiguous": false, "note": ""}, "14": {"best": 2, "worst": null, "ratings": [2, 5, 1, 2], "confidence": 3, "ambiguous": false, "note": ""}, "15": {"best": 4, "worst": null, "ratings": [2, 2, 1, 5], "confidence": 3, "ambiguous": false, "note": ""}, "16": {"best": 3, "worst": null, "ratings": [1, 1, 5, 2], "confidence": 3, "ambiguous": false, "note": ""}, "17": {"best": 1, "worst": 3, "ratings": [5, 3, 1, 2], "confidence": 2, "ambiguous": false, "note": ""}, "18": {"best": 3, "worst": 1, "ratings": [1, 2, 5, 3], "confidence": 1, "ambiguous": true, "note": "실현되지 않은 절감의 금액 환산(1)과 활동량 지표(2) 중 어느 쪽을 최악으로 볼지 갈린다."}, "19": {"best": 4, "worst": null, "ratings": [1, 1, 2, 5], "confidence": 3, "ambiguous": false, "note": ""}, "20": {"best": 1, "worst": null, "ratings": [5, 2, 3, 1], "confidence": 3, "ambiguous": false, "note": ""}}}
+>>>
