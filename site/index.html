@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AX Literacy 진단</title>
+<meta name="description" content="조직 구성원의 AI 활용 판단력을 35분 지필로 진단하고, 결과를 교육 처방으로 연결하는 공개 참조 구현">
+<style>
+:root{
+  --ground:#f7f8fa; --surface:#ffffff; --ink:#1a1d23; --ink-soft:#4f5764; --ink-faint:#666e7a;
+  --line:#e2e5eb; --accent:#2f5d8c; --accent-soft:#eaf1f8; --on-accent:#ffffff; --warn-soft:#fbf1e6;
+  --sans:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#14171c; --surface:#1c2027; --ink:#e8eaed; --ink-soft:#b0b8c3; --ink-faint:#949ca8;
+  --line:#2c323b; --accent:#7faad4; --accent-soft:#1f2a36; --on-accent:#0f1620; --warn-soft:#2a2118;
+}}
+:root[data-theme="dark"]{
+  --ground:#14171c; --surface:#1c2027; --ink:#e8eaed; --ink-soft:#b0b8c3; --ink-faint:#949ca8;
+  --line:#2c323b; --accent:#7faad4; --accent-soft:#1f2a36; --on-accent:#0f1620; --warn-soft:#2a2118;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.7;
+  word-break:keep-all;overflow-wrap:anywhere}
+.wrap{max-width:880px;margin:0 auto;padding:0 16px}
+a{color:var(--accent)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--ink-faint);font-weight:600;margin:0}
+header{padding:64px 0 32px}
+h1{font-size:40px;line-height:1.25;letter-spacing:-.02em;margin:10px 0 14px;text-wrap:balance}
+.lede{font-size:18px;color:var(--ink-soft);margin:0;max-width:640px}
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.btn{display:inline-flex;align-items:center;min-height:46px;padding:0 20px;border-radius:8px;font-weight:600;text-decoration:none;
+  border:1px solid var(--accent);background:var(--accent);color:var(--on-accent)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn:hover{filter:brightness(1.08)}
+.note{margin-top:18px;font-size:13.5px;color:var(--ink-soft)}
+section{padding:36px 0;border-top:1px solid var(--line)}
+h2{font-size:22px;margin:0 0 16px;letter-spacing:-.01em}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.card h3{font-size:16px;margin:0 0 6px}
+.card p{margin:0;color:var(--ink-soft);font-size:14.5px}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14.5px}
+.flow span{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+.flow i{color:var(--ink-faint);font-style:normal}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;background:var(--surface)}
+.stat{padding:16px 18px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat b{display:block;font-family:var(--mono);font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat span{font-size:13.5px;color:var(--ink-soft)}
+.honest{background:var(--warn-soft);border-radius:10px;padding:16px 18px;font-size:14.5px}
+.honest p{margin:0}.honest p+p{margin-top:6px}
+ul.links{padding-left:20px;margin:0}ul.links li{margin:6px 0}
+footer{padding:32px 0 56px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:13.5px}
+@media(max-width:560px){h1{font-size:30px}header{padding-top:40px}.btn{flex:1 1 100%;justify-content:center}}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+<header>
+  <p class="eyebrow">AX LITERACY 진단 · 공개 참조 구현</p>
+  <h1>AI 교육을 누구에게 어떻게 줄지,<br>감이 아니라 진단으로 정한다</h1>
+  <p class="lede">툴 지식이 아니라 <strong>실제 업무에서 AI를 어떻게 판단하며 쓰는지</strong>를 35분 지필로 진단하고, 그 결과를 교육 편성과 업무 개선으로 연결합니다.</p>
+  <div class="cta">
+    <a class="btn" href="form/">응시 체험하기 (35분)</a>
+    <a class="btn ghost" href="samples/report-individual.sample.html">개인 리포트 샘플</a>
+    <a class="btn ghost" href="samples/report-org.sample.html">조직 리포트 샘플</a>
+  </div>
+  <p class="note">응시본은 브라우저 안에서만 동작하고 응답은 어디로도 전송되지 않습니다. 이 폼은 정답이 공개된 참조용이라 결과가 평가에 쓰이지 않습니다.</p>
+</header>
+
+<section>
+  <h2>무엇이 다른가</h2>
+  <div class="grid">
+    <div class="card"><h3>툴 상식을 묻지 않는다</h3><p>모델 이름·기능 명칭 문항을 금지하고, 업무 상황에서의 판단(상황 판단형·산출물 비평형·최선–최악형)만 묻습니다.</p></div>
+    <div class="card"><h3>"무엇을 맡길까"가 1축</h3><p>위임 판단력 · 작업 설계 · 검증 · 워크플로우 재설계 · 리스크, 다섯 축으로 봅니다.</p></div>
+    <div class="card"><h3>측정한 만큼만 말한다</h3><p>축당 4문항으로는 점수가 구별되지 않으므로 축 결과는 3단 신호로만 주고, 총점은 ±5점 구간으로 해석합니다.</p></div>
+    <div class="card"><h3>결과가 결정으로 이어진다</h3><p>진단 전에 "이 결과로 바꿀 것 2개"를 합의하고, 결과로 교육 반을 편성합니다. 인사 평가와는 겸하지 않습니다.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>흐름</h2>
+  <div class="flow">
+    <span>스폰서 합의</span><i>→</i><span>응시 35분</span><i>→</i><span>객관식 자동 채점</span><i>→</i>
+    <span>주관식 LLM 채점 + 사람 표본 검토</span><i>→</i><span>개인·조직 리포트</span><i>→</i><span>교육 편성·재진단</span>
+  </div>
+</section>
+
+<section>
+  <h2>어떻게 검증했나</h2>
+  <div class="stats">
+    <div class="stat"><b>19건</b><span>검증 회차에서 찾아 기록·수정한 결함</span></div>
+    <div class="stat"><b>±2 0건</b><span>채점 모델을 바꿔 재검증했을 때 큰 불일치</span></div>
+    <div class="stat"><b>15 / 18</b><span>오답이 의도한 오개념을 잡아낸 비율 (합성 응시자)</span></div>
+    <div class="stat"><b>90+</b><span>매 커밋 자동 실행하는 테스트 (+ 문항 정합성 린트)</span></div>
+  </div>
+  <div class="honest" style="margin-top:14px">
+    <p><strong>아직 사람 대상 파일럿 전입니다.</strong> 위 검증은 LLM 채점과 합성 응시자로 했고, 같은 계열 모델끼리의 일치는 타당도의 증거가 아닙니다.</p>
+    <p>본 시행으로 갈지는 결과를 보기 전에 정한 6개 기준으로 판단합니다.</p>
+  </div>
+</section>
+
+<section>
+  <h2>더 보기</h2>
+  <ul class="links">
+    <li><a href="https://github.com/yohan-work/axst/blob/main/docs/case-study.md">케이스 스터디 — AI와 함께 만들며 AI가 틀린 것을 잡은 기록</a></li>
+    <li><a href="https://github.com/yohan-work/axst">GitHub 저장소 — 문항·루브릭·채점기·리포트 생성기 전체</a></li>
+    <li><a href="https://github.com/yohan-work/axst/blob/main/docs/13-pilot-proposal.md">1쪽 파일럿 제안서 양식</a></li>
+  </ul>
+</section>
+
+<footer>
+  코드 MIT · 콘텐츠 CC BY 4.0 · <a href="https://github.com/yohan-work/axst">github.com/yohan-work/axst</a>
+</footer>
+
+</main>
+</body>
+</html>

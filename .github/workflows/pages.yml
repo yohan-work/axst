@@ -1,0 +1,38 @@
+name: Pages
+
+# 공개 체험 사이트: 첫 화면(site/) + 온라인 응시본 + 합성 샘플 리포트.
+# 응시본과 샘플은 CI가 재생성 일치를 검사하는 커밋본을 그대로 복사한다.
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'forms/form-A.web.html', 'docs/samples/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 사이트 조립
+        run: |
+          mkdir -p _site/form _site/samples
+          cp site/index.html _site/index.html
+          cp forms/form-A.web.html _site/form/index.html
+          cp docs/samples/*.html _site/samples/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

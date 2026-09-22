@@ -1,6 +1,6 @@
 # AX Literacy Assessment (axst)
 
-[한국어 README](README.md)
+[한국어 README](README.md) · **[Live demo](https://yohan-work.github.io/axst/)** · [Case study (Korean)](docs/case-study.md)
 
 **A 35-minute paper-based assessment of whether employees can actually use AI well at work — and a method for turning the results into training prescriptions.**
 
