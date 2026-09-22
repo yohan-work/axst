@@ -119,6 +119,7 @@ axst/
 ├── personas/       직무 페르소나 6종 (HR · SALES · MFG · FIN · DEV · STAFF)
 ├── selfreport/     자기보고 3문항
 ├── forms/          응시본 · 정답지 · MANIFEST — 모든 값이 items/ 와 일치해야 한다
+├── training/       진단 결과에 맞춘 실습 키트 (검증·프론트엔드판)
 ├── scripts/        pilot.py(운영) · lint_items.py · build_web_form.py · score.py · fr_import.py · report.py · make_samples.py
 ├── tests/          채점기 회귀 테스트
 ├── pilot/          문항 분석 기록 (responses/ 는 커밋하지 않음)
