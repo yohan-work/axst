@@ -69,7 +69,7 @@ AI 산출물에서 확인할 게 여러 개일 때, **다 보려고 하지 않�
 > ⑦ 번들 크기가 약 8% 줄었습니다.
 > ⑧ Chrome·Safari·Firefox 최신 버전에서 동작을 확인했습니다.
 
-### 자료 1 — 변경 내용 (`OptionSelect.tsx`는 변경 전문, `[id].tsx`는 바뀐 줄만)
+### 자료 1 — 변경 내용 (`OptionSelect.tsx`는 컴포넌트 본문 변경 전문·import 줄 생략, `[id].tsx`는 바뀐 줄만)
 
 ```diff
  // src/components/OptionSelect/OptionSelect.tsx
