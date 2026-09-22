@@ -10,7 +10,7 @@
 [![code: MIT](https://img.shields.io/badge/code-MIT-green)](LICENSE)
 [![content: CC BY 4.0](https://img.shields.io/badge/content-CC%20BY%204.0-lightgrey)](LICENSE-CONTENT)
 
-[English summary](README.en.md)
+**[▶ 바로 체험하기](https://yohan-work.github.io/axst/)** · [케이스 스터디 — 어떻게 만들고 검증했나](docs/case-study.md) · [English summary](README.en.md)
 
 </div>
 
@@ -121,7 +121,8 @@ axst/
 ├── forms/          응시본 · 정답지 · MANIFEST — 모든 값이 items/ 와 일치해야 한다
 ├── training/       진단 결과에 맞춘 실습 키트 (검증·프론트엔드판)
 ├── scripts/        pilot.py(운영) · lint_items.py · build_web_form.py · score.py · fr_import.py · report.py · make_samples.py
-├── tests/          채점기 회귀 테스트
+├── tests/          채점기·리포트·운영 도구 테스트
+├── site/           공개 체험 사이트 첫 화면 (GitHub Pages)
 ├── pilot/          문항 분석 기록 (responses/ 는 커밋하지 않음)
 └── docs/           설계 문서
     ├── 00-charter             헌장 · 진단용/인증용 겸용 금지
@@ -139,6 +140,7 @@ axst/
     ├── 12-open-issues         열린 과제
     ├── 13-pilot-proposal      1쪽 파일럿 제안서 양식
     ├── 14-pilot-runbook       파일럿 운영 순서와 명령
+    ├── case-study             만든 과정·AI 결과를 검증한 기록·결정
     ├── samples/               합성 데이터로 만든 리포트 샘플
     └── 99-changelog           변경 기록과 설계 결정 근거
 ```
